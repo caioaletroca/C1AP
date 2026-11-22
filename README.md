@@ -97,6 +97,17 @@ AP_TEST_WORLDS=crash1 python -m pytest worlds/crash1/test test/general
 
 No game data (disc images, BIOS, saves) belongs in this repository.
 
+## AI usage
+
+This project was built with heavy use of AI. Most of the code, tests and documentation were written by
+[Claude Code](https://claude.com/claude-code), an AI coding assistant, working under my direction. That includes the
+world, the BizHawk client, the RAM research from the decompilation, and the Lua test scripts. Commits it co-wrote are
+marked `Co-Authored-By: Claude`.
+
+My part was the design decisions and testing. I played every feature in BizHawk, confirmed the RAM addresses against
+the real game (the results are in [tools/VERIFY.md](tools/VERIFY.md)), and reported the bugs those tests found until
+they were fixed. Nothing in the client was marked as working before it was seen working in the emulator.
+
 ## Credits
 
 - RAM and level data: the Crash 1 decompilation ([esplonky/c1](https://github.com/esplonky/c1)) and GOOL dumps.
