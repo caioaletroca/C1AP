@@ -28,10 +28,12 @@ The game shows nothing special. The item is sent as soon as the client sees the 
 
 Colored gems and keys appear in your inventory right away; a gem path shows up the next time you enter the
 level (the game only checks gems when a level loads). Map progress takes effect the next time you are on
-the map. Filler (lives, masks, fruit) is applied the next time you are playing a level.
+the map. Filler (lives, masks, fruit) is applied the next time you are on the map, and carries into the next level.
 
 ## Known limitations (v0.1)
 
 - NTSC-U (SCUS-94900) only.
-- Death Link only sends deaths; received deaths are not applied yet.
+- Death Link is not reliable yet: received deaths are not applied, and sent deaths miss most deaths.
+- Gems belong to map nodes: the end screen shows the gem of the node you entered from, but the check counts for the
+  level you played.
 - The game itself does not show which shuffled level a node leads to until you enter it.
