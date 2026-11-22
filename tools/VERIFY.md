@@ -76,3 +76,13 @@ bit = node. Gem levels may go on any node.
 **Colored node (seed 1):** ✅ N. Sanity Beach on node 12 (Green's node), Green not owned: the game set `ITEMPOOL1`
 bit 12 on the level end screen, the client sent "N. Sanity Beach - Gem" and cleared the bit 4 frames later (no Green
 path without the item). Colored-node masking works live.
+
+**Death Link:** ❌ byte search for in-level lives found only object fields (they matched lives in N. Sanity Beach
+by chance, then drifted in Jungle Rollers). ✅ `RESPAWNCOUNT` 0x800618A0 (from the decompilation): Jungle Rollers,
+two TNT deaths, checkpoint, two more deaths → 0 → 0x100 → 0x200 → 0x300 → 0x400. `DEATHCOUNT` stayed 0 for the first
+two deaths: it counts deaths since the last checkpoint. Tools: `c1ap_lives_search.lua`, `c1ap_lives_watch.lua`.
+
+**No Lives Trap (trap test seed):** ✅ `/send Crash No Lives Trap` on the map → lives 0 for the next level
+(N. Sanity Beach), back on the map → "No Lives Trap over: 4 lives". A second trap armed again right after.
+✅ Game over with the second trap armed: died once with 0 lives → Game Over → Continue → 4 lives (vanilla), trap
+cleared without restoring.

@@ -44,18 +44,33 @@ class StartingNodes(Range):
     default = 3
 
 
+class TrapChance(Range):
+    """Chance (in percent) for each filler item to be a trap instead.
+
+    No Lives Trap: you play your next level with 0 lives, so one death is a game over. Back on the map, your lives
+    come back (plus any you picked up in the level). A game over ends the trap without giving them back.
+    """
+
+    display_name = "Trap Chance"
+    range_start = 0
+    range_end = 100
+    default = 0
+
+
 @dataclass
 class Crash1Options(PerGameCommonOptions):
     goal: Goal
     level_shuffle: LevelShuffle
     gem_checks: GemChecks
     starting_nodes: StartingNodes
+    trap_chance: TrapChance
     death_link: DeathLink
 
 
 option_groups: list[OptionGroup] = [
     OptionGroup("Progression", [Goal, LevelShuffle, StartingNodes]),
     OptionGroup("Checks", [GemChecks]),
+    OptionGroup("Traps", [TrapChance]),
 ]
 
 option_presets: dict[str, dict[str, object]] = {

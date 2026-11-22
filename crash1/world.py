@@ -10,7 +10,7 @@ from .data import (
     Level,
 )
 from .items import (
-    CLEAR_GEM, DEFAULT_CLASSIFICATION, FILLER_WEIGHTS, GAME_NAME, MAP_PROGRESS, VICTORY, Crash1Item, item_name_groups,
+    CLEAR_GEM, DEFAULT_CLASSIFICATION, FILLER_WEIGHTS, GAME_NAME, MAP_PROGRESS, NO_LIVES_TRAP, VICTORY, Crash1Item, item_name_groups,
     item_name_to_id,
 )
 from .locations import CORTEX_EVENT, Crash1Location, location_name_groups, location_name_to_id
@@ -147,6 +147,8 @@ class Crash1World(World):
         self.multiworld.itempool += pool
 
     def get_filler_item_name(self) -> str:
+        if self.random.randint(0, 99) < self.options.trap_chance.value:
+            return NO_LIVES_TRAP
         names = list(FILLER_WEIGHTS)
         return self.random.choices(names, weights=[FILLER_WEIGHTS[name] for name in names])[0]
 

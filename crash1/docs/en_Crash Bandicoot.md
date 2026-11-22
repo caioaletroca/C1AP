@@ -8,7 +8,9 @@
 - **Colored gems** (Green, Orange, Blue, Red, Purple, Yellow) are items. Their gem paths only appear once you
   receive them, wherever they were found.
 - **Keys** to *Whole Hog* and *Fumbling in the Dark* are items.
-- Leftover slots are filled with extra lives, Aku Aku masks and Wumpa fruit.
+- Leftover slots are filled with extra lives, Aku Aku masks and Wumpa fruit. With *Trap Chance*, some of them are
+  *No Lives Traps* instead: you play your next level with 0 lives (one death is a game over). Back on the map you
+  get your lives back, plus any you picked up; a game over ends the trap without giving them back.
 
 ## What is the goal?
 
@@ -28,12 +30,12 @@ The game shows nothing special. The item is sent as soon as the client sees the 
 
 Colored gems and keys appear in your inventory right away; a gem path shows up the next time you enter the
 level (the game only checks gems when a level loads). Map progress takes effect the next time you are on
-the map. Filler (lives, masks, fruit) is applied the next time you are on the map, and carries into the next level.
+the map. Filler (lives, masks, fruit) and traps are applied the next time you are on the map, and carries into the next level.
 
 ## Known limitations (v0.1)
 
 - NTSC-U (SCUS-94900) only.
-- Death Link is not reliable yet: received deaths are not applied, and sent deaths miss most deaths.
+- Death Link only sends deaths: every time you die, the others die too. Received deaths are not applied yet.
 - Gems belong to map nodes: the end screen shows the gem of the node you entered from, but the check counts for the
   level you played.
 - The game itself does not show which shuffled level a node leads to until you enter it.

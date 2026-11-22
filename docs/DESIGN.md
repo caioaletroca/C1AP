@@ -289,7 +289,8 @@ Only use guarded writes, and write only during gameplay or map states ❓.
 - The memory card or password save is irrelevant. The AP state is rebuilt from the server.
 
 ### 9.5 Death link
-- **Send:** `DEATHCOUNT` goes up (or `LIFECOUNT` drops) → send a death.
+- **Send:** `RESPAWNCOUNT` (0x800618A0, +0x100 per respawn, 0 at level start) goes up within a level → send a
+  death. (`DEATHCOUNT` resets at every checkpoint: it's the Aku Aku pity-mask counter.) ✅ verified in BizHawk.
 - **Receive:** kill Crash. The method is ❓ (setting health/state, or a game event). If we
   can't make it reliable, v0.1 sends deaths only and says so in the docs.
 
@@ -324,7 +325,7 @@ needs (`interpret_slot_data`).
 | 6 | Game state / safe-to-write states | `GAMESTATE` 0x800618D0 | values listed; confirm |
 | 7 | Boot ID string for `validate_rom` | — | ❓ |
 | 8 | Free RAM for client state | — | ❓ |
-| 9 | Death detection, and a way to kill Crash | `DEATHCOUNT` 0x80061A3C / `HEALTH` | ❓ |
+| 9 | Death detection, and a way to kill Crash | `RESPAWNCOUNT` 0x800618A0 ✅ / kill ❓ | ❓ |
 | 10 | Confirm the US Sunset Vista/Slippery Climb order, colored gem table (§3), clear-gem bit → level map, which level has no gem | playtest + `GemsC.gooc` | tables filled from sources; confirm |
 
 ## 13. Milestones

@@ -107,7 +107,9 @@ class Watcher:
             self._sync_map(snap, received, actions)
         self._redirect_level(snap, actions)
 
-        if previous is not None and not previous.on_title and snap.death_count > previous.death_count:
+        # Every respawn after a death bumps RESPAWN_COUNT; it drops back to 0 when a level starts.
+        if (previous is not None and not previous.on_title and snap.level == previous.level
+                and snap.respawn_count > previous.respawn_count):
             actions.died = True
 
         if snap.level == ram.LID_GAME_WIN and self._goal_items_met(received):

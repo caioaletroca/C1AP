@@ -20,6 +20,7 @@ def offset(address: int) -> int:
 # GOOL globals block
 GLOBALS_START = 0x8006188C
 LEVEL = 0x8006188C             # OK: current level ID << 8 (fixed point); the client uses CURRENT_LID instead
+RESPAWN_COUNT = 0x800618A0     # OK: +0x100 on every respawn after a death (checkpoints too), 0 at level start
 GAMESTATE = 0x800618D0         # OK
 CURRENT_NODE = 0x800618DC      # OK: (1 after entering node 1): CURRENTLEVEL, the map node last entered (IslandProgress)
 LIFE_COUNT = 0x800618EC        # OK: lives << 8; only synced from the level at its end
@@ -31,7 +32,7 @@ ITEM_POOL1 = 0x80061988        # OK: (N. Sanity Beach gem = bit 1)
 ITEM_POOL2 = 0x800619AC        # VERIFY
 MAP_LEVEL_LINKS = 0x800619B0   # OK: the map recomputes (1 << (LEVELS_UNLOCKED + 1)) - 1 on entry
 MAP_KEY_LINKS = 0x800619B8     # VERIFY: the map copies ITEM_POOL2 here on entry
-DEATH_COUNT = 0x80061A3C       # BAD: << 8, missed most deaths, resets on exit; death link needs in-level lives
+DEATH_COUNT = 0x80061A3C       # BAD for death link: deaths since the last checkpoint (Aku Aku pity mask)
 GLOBALS_END = DEATH_COUNT + 4
 GLOBALS_SIZE = GLOBALS_END - GLOBALS_START
 
@@ -112,7 +113,7 @@ class Snapshot:
     levels_unlocked: int
     pool1: int
     pool2: int
-    death_count: int
+    respawn_count: int
     next_lid: int
 
     @property
@@ -150,7 +151,7 @@ def parse(globals_block: bytes, lid_block: bytes) -> Snapshot:
         levels_unlocked=g(LEVELS_UNLOCKED),
         pool1=g(ITEM_POOL1),
         pool2=g(ITEM_POOL2),
-        death_count=g(DEATH_COUNT),
+        respawn_count=g(RESPAWN_COUNT),
         next_lid=_word(lid_block, LID_BLOCK, NEXT_LID),
     )
 

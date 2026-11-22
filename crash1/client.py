@@ -4,14 +4,15 @@ All game logic lives in ``watcher.py``; this module only talks to BizHawk and th
 """
 import logging
 from collections import Counter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from NetUtils import ClientStatus
 import worlds._bizhawk as bizhawk
 from worlds._bizhawk.client import BizHawkClient
 
-from . import ram
-from .items import FILLER_WEIGHTS, GAME_NAME, item_name_to_id
+from . import ram, trap
+from .items import APPLIED_ON_MAP, GAME_NAME, NO_LIVES_TRAP, item_name_to_id
+from .trap import TrapState
 from .watcher import SlotInfo, Watcher
 
 if TYPE_CHECKING:
@@ -51,6 +52,26 @@ async def find_serial(ctx: "BizHawkClientContext") -> bool:
 
 def _filler_key(ctx: "BizHawkClientContext") -> str:
     return f"C1AP_filler_applied_{ctx.team}_{ctx.slot}"
+
+
+def _trap_key(ctx: "BizHawkClientContext") -> str:
+    return f"C1AP_trap_{ctx.team}_{ctx.slot}"
+
+
+async def _store(ctx: "BizHawkClientContext", key: str, value: Any) -> None:
+    ctx.stored_data[key] = value  # local copy until the server echoes the update
+    await ctx.send_msgs([{
+        "cmd": "Set", "key": key, "default": None, "want_reply": False,
+        "operations": [{"operation": "replace", "value": value}],
+    }])
+
+
+async def _write_word(ctx: "BizHawkClientContext", address: int, value: int, guard: int) -> bool:
+    return await bizhawk.guarded_write(
+        ctx.bizhawk_ctx,
+        [(ram.offset(address), ram.word_bytes(value), ram.DOMAIN)],
+        [(ram.offset(address), ram.word_bytes(guard), ram.DOMAIN)],
+    )
 
 
 class Crash1Client(BizHawkClient):
@@ -100,7 +121,7 @@ class Crash1Client(BizHawkClient):
             self.watcher = Watcher(SlotInfo.from_slot_data(ctx.slot_data))
             await ctx.update_death_link(bool(ctx.slot_data.get("death_link", False)))
         if not self.notify_set:
-            ctx.set_notify(_filler_key(ctx))
+            ctx.set_notify(_filler_key(ctx), _trap_key(ctx))
             self.notify_set = True
 
         try:
@@ -133,38 +154,54 @@ class Crash1Client(BizHawkClient):
                 self.goal_sent = True
                 ctx.finished_game = True
 
+            if await self._advance_trap(ctx, snap):
+                return  # lives were just restored; filler waits for the next poll
             if actions.can_apply_filler:
                 await self._apply_filler(ctx, snap)
         except bizhawk.RequestFailedError:
             pass  # emulator busy or disconnected; try again next poll
 
-    async def _apply_filler(self, ctx: "BizHawkClientContext", snap: ram.Snapshot) -> None:
-        """Apply the next filler item not yet applied. The count lives in data storage so it survives restarts."""
-        key = _filler_key(ctx)
+    async def _advance_trap(self, ctx: "BizHawkClientContext", snap: ram.Snapshot) -> bool:
+        """Track an active No Lives Trap; returns True if this poll restored the lives."""
+        key = _trap_key(ctx)
         if key not in ctx.stored_data:
+            return False  # not loaded yet
+        state = TrapState.from_json(ctx.stored_data[key])
+        new_state, restore = trap.advance(state, snap)
+        if restore is not None:
+            if not await _write_word(ctx, ram.LIFE_COUNT, restore, snap.lives):
+                return False
+            logger.info(f"No Lives Trap over: {restore // ram.UNIT} lives.")
+        if new_state != state:
+            await _store(ctx, key, None if new_state is None else new_state.to_json())
+        return restore is not None
+
+    async def _apply_filler(self, ctx: "BizHawkClientContext", snap: ram.Snapshot) -> None:
+        """Apply the next filler item or trap not yet applied. The count lives in data storage so it survives restarts."""
+        key = _filler_key(ctx)
+        if key not in ctx.stored_data or _trap_key(ctx) not in ctx.stored_data:
             return  # not loaded yet
         applied = int(ctx.stored_data[key] or 0)
         fillers = [name for item in ctx.items_received
-                   if (name := ITEM_ID_TO_NAME.get(item.item)) in FILLER_WEIGHTS]
+                   if (name := ITEM_ID_TO_NAME.get(item.item)) in APPLIED_ON_MAP]
         if applied >= len(fillers):
             return
 
         name = fillers[applied]
-        if name == "Extra Life":
-            address, value, guard = ram.LIFE_COUNT, min(snap.lives + ram.UNIT, ram.MAX_LIVES), snap.lives
-        elif name == "Aku Aku Mask":
-            address, value, guard = ram.HEALTH, min(snap.health + ram.UNIT, ram.MAX_HEALTH), snap.health
-        else:  # Wumpa Fruit Bundle
-            address, value, guard = ram.FRUIT_COUNT, min(snap.fruit + 10 * ram.UNIT, ram.MAX_FRUIT), snap.fruit
-
-        written = await bizhawk.guarded_write(
-            ctx.bizhawk_ctx,
-            [(ram.offset(address), ram.word_bytes(value), ram.DOMAIN)],
-            [(ram.offset(address), ram.word_bytes(guard), ram.DOMAIN)],
-        )
-        if written:
-            ctx.stored_data[key] = applied + 1  # local copy until the server echoes the update
-            await ctx.send_msgs([{
-                "cmd": "Set", "key": key, "default": 0, "want_reply": False,
-                "operations": [{"operation": "replace", "value": applied + 1}],
-            }])
+        if name == NO_LIVES_TRAP:
+            state, lives = trap.spring(TrapState.from_json(ctx.stored_data[_trap_key(ctx)]), snap)
+            if lives is not None:
+                if not await _write_word(ctx, ram.LIFE_COUNT, lives, snap.lives):
+                    return
+                await _store(ctx, _trap_key(ctx), state.to_json())
+                logger.info("No Lives Trap! 0 lives for the next level.")
+        else:
+            if name == "Extra Life":
+                address, value, guard = ram.LIFE_COUNT, min(snap.lives + ram.UNIT, ram.MAX_LIVES), snap.lives
+            elif name == "Aku Aku Mask":
+                address, value, guard = ram.HEALTH, min(snap.health + ram.UNIT, ram.MAX_HEALTH), snap.health
+            else:  # Wumpa Fruit Bundle
+                address, value, guard = ram.FRUIT_COUNT, min(snap.fruit + 10 * ram.UNIT, ram.MAX_FRUIT), snap.fruit
+            if not await _write_word(ctx, address, value, guard):
+                return
+        await _store(ctx, key, applied + 1)

@@ -20,6 +20,7 @@ the map, the colored gems and the secret keys come back to you as items.
   receive them.
 - **Keys.** The keys to *Whole Hog* and *Fumbling in the Dark* are items.
 - **Filler.** Extra lives, Aku Aku masks and Wumpa fruit.
+- **Traps** (optional). *No Lives Trap*: you play your next level with 0 lives, then they come back on the map.
 
 The locations are finishing each level, defeating each boss, each level's gem (optional) and the two keys.
 
@@ -35,6 +36,7 @@ Defeat Dr. N. Cortex (`cortex`), or defeat him while holding all 26 gems (`all_g
 | `level_shuffle` | `true` / `false` | `true` |
 | `gem_checks` | `true` / `false`: gems are locations | `true` |
 | `starting_nodes` | 1-10 map nodes open at the start | 3 |
+| `trap_chance` | 0-100: % of filler replaced by a No Lives Trap | 0 |
 | `death_link` | `true` / `false` | `false` |
 
 ## Setup
@@ -62,8 +64,7 @@ The full guides are the [setup guide](crash1/docs/setup_en.md) and the
 ## Known issues
 
 - Only the NTSC-U version (SCUS-94900) is supported.
-- Death Link does not work reliably yet. The game's death counter misses deaths, so the real lives counter still
-  needs to be found.
+- Death Link only sends deaths. Receiving a death (killing Crash) is not supported yet.
 - Shuffled levels show the vanilla level's name on the loading screen for a couple of seconds.
 - Gems belong to map nodes, not levels. The end screen shows the gem of the node you entered from (usually a clear
   gem). The check still counts for the level you played, and colored gems only appear once you receive the item.

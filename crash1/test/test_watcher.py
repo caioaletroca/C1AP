@@ -9,7 +9,7 @@ from ..shuffle import vanilla_order
 from ..watcher import SlotInfo, Watcher
 
 MAP = ram.Snapshot(level=ram.LID_MAP, gamestate=ram.GAMESTATE_MAP, current_node=1, lives=4 * ram.UNIT,
-                   health=0, fruit=0, levels_unlocked=3, pool1=0, pool2=0, death_count=0, next_lid=ram.NO_LEVEL)
+                   health=0, fruit=0, levels_unlocked=3, pool1=0, pool2=0, respawn_count=0, next_lid=ram.NO_LEVEL)
 
 
 def lid(name: str) -> int:
@@ -206,10 +206,27 @@ class TestWatcher(unittest.TestCase):
 
     def test_goal_and_death(self) -> None:
         self.step(replace(MAP, level=lid("Dr. N. Cortex"), gamestate=ram.GAMESTATE_PLAYING))
-        self.step(replace(MAP, level=lid("Dr. N. Cortex"), gamestate=ram.GAMESTATE_PLAYING, death_count=1))
+        self.step(replace(MAP, level=lid("Dr. N. Cortex"), gamestate=ram.GAMESTATE_PLAYING, respawn_count=0x100))
         self.assertTrue(self.actions.died)
         self.step(replace(MAP, level=ram.LID_GAME_WIN))
         self.assertTrue(self.actions.goal)
+
+    def test_respawns_are_deaths(self) -> None:
+        """Jungle Rollers in BizHawk: two deaths, a checkpoint, two more deaths; RESPAWNCOUNT 0 -> 0x400."""
+        level = self.step(self.in_level("Jungle Rollers"))
+        deaths = 0
+        for count in (0x100, 0x200, 0x200, 0x300, 0x400):
+            self.step(replace(level, respawn_count=count))
+            deaths += self.actions.died
+        self.assertEqual(deaths, 4)
+
+    def test_respawn_count_reset_is_not_a_death(self) -> None:
+        self.step(self.in_level("Jungle Rollers", respawn_count=0x300))
+        self.step(replace(MAP, respawn_count=0x300))
+        self.step(self.in_level("Boulders"))
+        self.assertFalse(self.actions.died)
+        self.step(self.in_level("Boulders", respawn_count=0x100))
+        self.assertTrue(self.actions.died)
 
     def test_all_gems_goal_needs_items(self) -> None:
         self.watcher = make_watcher(goal=1)

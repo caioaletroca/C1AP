@@ -27,6 +27,20 @@ class TestMaxStart(Crash1TestBase):
     options = {"starting_nodes": 10, "gem_checks": False}
 
 
+class TestTraps(Crash1TestBase):
+    options = {"trap_chance": 100}
+
+    def test_all_filler_is_traps(self) -> None:
+        traps = self.get_items_by_name("No Lives Trap")
+        self.assertTrue(traps)
+        self.assertFalse(self.get_items_by_name("Extra Life"))
+
+
+class TestNoTrapsByDefault(Crash1TestBase):
+    def test_no_traps(self) -> None:
+        self.assertFalse(self.get_items_by_name("No Lives Trap"))
+
+
 class TestPoolSize(Crash1TestBase):
     def test_item_count_matches_locations(self) -> None:
         locations = [loc for loc in self.multiworld.get_locations(self.player) if loc.address is not None]
