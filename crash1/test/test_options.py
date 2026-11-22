@@ -1,0 +1,36 @@
+from .bases import Crash1TestBase
+
+
+class TestDefault(Crash1TestBase):
+    options = {}
+
+
+class TestVanillaOrder(Crash1TestBase):
+    options = {"level_shuffle": False}
+
+
+class TestNoGems(Crash1TestBase):
+    options = {"gem_checks": False}
+
+    def test_no_gem_locations_or_items(self) -> None:
+        locations = {loc.name for loc in self.multiworld.get_locations(self.player)}
+        self.assertFalse(any(name.endswith(" - Gem") for name in locations))
+        self.assertFalse(self.get_items_by_name("Clear Gem"))
+        self.assertFalse(self.get_items_by_name("Green Gem"))
+
+
+class TestAllGemsGoal(Crash1TestBase):
+    options = {"goal": "all_gems", "starting_nodes": 1}
+
+
+class TestMaxStart(Crash1TestBase):
+    options = {"starting_nodes": 10, "gem_checks": False}
+
+
+class TestPoolSize(Crash1TestBase):
+    def test_item_count_matches_locations(self) -> None:
+        locations = [loc for loc in self.multiworld.get_locations(self.player) if loc.address is not None]
+        items = [item for item in self.multiworld.itempool if item.player == self.player]
+        self.assertEqual(len(locations), len(items))
+        self.assertEqual(len(locations), 60)
+        self.assertEqual(len(self.get_items_by_name("Map Progress")), 31 - 3)

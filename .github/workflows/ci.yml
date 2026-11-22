@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: C1AP
+      - uses: actions/checkout@v4
+        with:
+          repository: ArchipelagoMW/Archipelago
+          ref: "0.6.8"
+          path: Archipelago
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install Archipelago requirements
+        working-directory: Archipelago
+        run: |
+          python -m pip install --upgrade pip "setuptools<81"
+          python -m pip install pytest pytest-subtests
+          python ModuleUpdate.py --yes
+      - name: Link world
+        run: ln -s "$GITHUB_WORKSPACE/C1AP/crash1" Archipelago/worlds/crash1
+      - name: World tests
+        working-directory: Archipelago
+        env:
+          AP_TEST_WORLDS: crash1
+        run: python -m pytest worlds/crash1/test test/general -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build apworld
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          zip -r crash1.apworld crash1 -x "crash1/test/*" "*/__pycache__/*"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crash1.apworld
+          path: crash1.apworld
