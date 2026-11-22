@@ -7,7 +7,7 @@ Archipelago is a multi-game randomizer: the items of every game in a session are
 worlds. In Crash Bandicoot, finishing levels and collecting gems sends items to other players (or to yourself), and
 the map, the colored gems and the secret keys come back to you as items.
 
-> **Status: alpha (0.1.0).** Every client feature has been tested live in BizHawk (see
+> **Status: alpha.** Every client feature has been tested live in BizHawk (see
 > [tools/VERIFY.md](tools/VERIFY.md)). Expect rough edges, and please report them in the
 > [issues](https://github.com/caioaletroca/C1AP/issues).
 

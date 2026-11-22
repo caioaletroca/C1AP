@@ -169,7 +169,7 @@ class Crash1World(World):
             "gem_checks": self.options.gem_checks.value,
             "goal": self.options.goal.value,
             "death_link": self.options.death_link.value,
-            "world_version": "0.1.0",
+            "world_version": ".".join(map(str, self.world_version)),  # from archipelago.json
         }
 
     def interpret_slot_data(self, slot_data: dict[str, Any]) -> dict[str, Any]:
