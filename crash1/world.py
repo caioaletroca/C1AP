@@ -6,14 +6,14 @@ from rule_builder.rules import Has, HasAll, Rule
 from worlds.AutoWorld import WebWorld, World
 
 from .data import (
-    CLEAR_GEM_COUNT, COLORED_GEMS, FINAL_BOSS, KEY_BY_SECRET, KEYS, LEVEL_BY_LID, MAP_NODES, SECRET_LEVELS, Gem,
-    Level,
+    BOX_MILESTONES, CLEAR_GEM_COUNT, COLORED_GEMS, FINAL_BOSS, GEM_PATH_PERCENT, KEY_BY_SECRET, KEYS, LEVEL_BY_LID,
+    MAP_NODES, SECRET_LEVELS, Gem, Level, box_percents,
 )
 from .items import (
     CLEAR_GEM, DEFAULT_CLASSIFICATION, FILLER_WEIGHTS, GAME_NAME, MAP_PROGRESS, NO_LIVES_TRAP, VICTORY, Crash1Item, item_name_groups,
     item_name_to_id,
 )
-from .locations import CORTEX_EVENT, Crash1Location, location_name_groups, location_name_to_id
+from .locations import CORTEX_EVENT, Crash1Location, life_count_location, location_name_groups, location_name_to_id
 from .options import Crash1Options, Goal, option_groups, option_presets
 from .shuffle import shuffle_order, vanilla_order
 
@@ -38,6 +38,11 @@ class Crash1Web(WebWorld):
 
 def node_region_name(node: int) -> str:
     return f"Map Node {node}"
+
+
+def life_count_node(lives: int) -> int:
+    """Map node whose region holds a life count check: about N / 3 nodes open, capped before the final boss"""
+    return min(MAP_NODES - 1, max(1, -(-lives // 3)))
 
 
 class Crash1World(World):
@@ -71,6 +76,9 @@ class Crash1World(World):
             self.options.starting_nodes.value = passthrough["starting_nodes"]
             self.options.gem_checks.value = passthrough["gem_checks"]
             self.options.goal.value = passthrough["goal"]
+            self.options.box_checks.value = passthrough.get("box_checks", 0)
+            self.options.bonus_round_checks.value = passthrough.get("bonus_round_checks", 0)
+            self.options.life_count_checks.value = {str(lives) for lives in passthrough.get("life_count_checks", [])}
             self.level_order = [LEVEL_BY_LID[lid] for lid in passthrough["level_order"]]
         elif self.options.level_shuffle:
             self.level_order = shuffle_order(self.random, self.options.starting_nodes.value)
@@ -92,6 +100,9 @@ class Crash1World(World):
             self.create_entrance(previous, region, Has(MAP_PROGRESS, node - self.options.starting_nodes.value))
             self.add_level_locations(region, level)
             previous = region
+
+        for lives in self.life_counts():
+            self.add_location(node_regions[life_count_node(lives)], life_count_location(lives))
 
         for secret in SECRET_LEVELS:
             key = KEY_BY_SECRET[secret.name]
@@ -117,6 +128,18 @@ class Crash1World(World):
         for key in KEYS:
             if key.source == level.name:
                 self.add_location(region, key.location)
+
+        if self.options.bonus_round_checks:
+            for bonus in level.check_bonuses:
+                self.add_location(region, level.bonus_location(bonus))
+
+        for percent in box_percents(level, self.options.box_checks.value, bool(self.options.gem_checks)):
+            location = self.add_location(region, level.box_location(percent))
+            if percent >= GEM_PATH_PERCENT and level.gem_requires:
+                self.set_rule(location, HasAll(*(gem.item_name for gem in level.gem_requires)))
+
+    def life_counts(self) -> list[int]:
+        return sorted(int(lives) for lives in self.options.life_count_checks.value)
 
     def add_location(self, region: Region, name: str) -> Crash1Location:
         location = Crash1Location(self.player, name, self.location_name_to_id[name], region)
@@ -168,6 +191,9 @@ class Crash1World(World):
             "starting_nodes": self.options.starting_nodes.value,
             "gem_checks": self.options.gem_checks.value,
             "goal": self.options.goal.value,
+            "box_checks": self.options.box_checks.value,
+            "bonus_round_checks": self.options.bonus_round_checks.value,
+            "life_count_checks": self.life_counts(),
             "death_link": self.options.death_link.value,
             "world_version": ".".join(map(str, self.world_version)),  # from archipelago.json
         }
@@ -186,7 +212,12 @@ class Crash1World(World):
             return
         info: dict[int, str] = {}
         for node, level in enumerate(self.level_order, start=1):
-            for name in (level.complete_location, level.gem_location, *(k.location for k in KEYS if k.source == level.name)):
+            names = (
+                level.complete_location, level.gem_location, *(k.location for k in KEYS if k.source == level.name),
+                *(level.bonus_location(bonus) for bonus in level.check_bonuses),
+                *(level.box_location(percent) for percent in BOX_MILESTONES),
+            )
+            for name in names:
                 if name in self.location_name_to_id:
                     info[self.location_name_to_id[name]] = node_region_name(node)
         hint_data[self.player] = info

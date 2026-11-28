@@ -13,15 +13,25 @@ Ownership rules (see docs/DESIGN.md §9):
   0; the game setting it there means the player collected the gem. Keys work the same way with their source level.
 - Clear gem bits are never written. The node's clear gem bit appearing while in a level is that level's gem check.
 - The map's reachable nodes mirror the Map Progress items.
+
+Tier 1 checks (v0.3):
+- Box milestones: BOX_COUNT (<< 8) reaching a share of the played level's box total, while in that level.
+- Bonus rounds: entering a Tawna or Brio bonus round from a level. The kind comes from the token counts in the Crash
+  object (the one at 3), else from the bonus level's ID.
+- Life counts: the current lives (the Crash object's in a level, the global on the map) reaching a count.
+The Crash object's fields are only trusted when they look like counters on two polls in a row with the same pointer.
+``Actions.notes`` carries what the client should log for verification (box totals, bonus kinds).
 """
 from collections import Counter
 from collections.abc import Collection
 from dataclasses import dataclass, field
 
 from . import ram
-from .data import COLORED_GEMS, FINAL_BOSS, KEYS, LEVEL_BY_LID, LEVEL_BY_NAME, MAP_NODES, Gem, Level
+from .data import (
+    COLORED_GEMS, FINAL_BOSS, KEYS, LEVEL_BY_LID, LEVEL_BY_NAME, MAP_NODES, Bonus, Gem, Level, box_percents,
+)
 from .items import CLEAR_GEM, MAP_PROGRESS
-from .locations import location_name_to_id
+from .locations import life_count_location, location_name_to_id
 from .options import Goal
 
 
@@ -32,6 +42,9 @@ class SlotInfo:
     starting_nodes: int
     gem_checks: bool
     goal: int
+    box_checks: int = 0
+    bonus_round_checks: bool = False
+    life_count_checks: tuple[int, ...] = ()
 
     @classmethod
     def from_slot_data(cls, slot_data: dict) -> "SlotInfo":
@@ -40,6 +53,9 @@ class SlotInfo:
             starting_nodes=int(slot_data["starting_nodes"]),
             gem_checks=bool(slot_data["gem_checks"]),
             goal=int(slot_data["goal"]),
+            box_checks=int(slot_data.get("box_checks", 0)),
+            bonus_round_checks=bool(slot_data.get("bonus_round_checks", False)),
+            life_count_checks=tuple(int(lives) for lives in slot_data.get("life_count_checks", ())),
         )
 
 
@@ -77,6 +93,11 @@ class Actions:
     goal: bool = False
     died: bool = False
     can_apply_filler: bool = False
+    """On the map: every filler and trap can be applied (to the globals)"""
+    can_apply_live_filler: bool = False
+    """In a level with a trusted Crash object: Extra Life and Wumpa Fruit Bundle can be applied to it"""
+    notes: list[str] = field(default_factory=list)
+    """Lines for the client log (verification data)"""
 
 
 class Watcher:
@@ -90,6 +111,11 @@ class Watcher:
         """Level Crash is in (bonus rounds and the end-of-level screen count as the level they came from)"""
         self.masked: list[Mask] = []
         """Owned bits held at 0 after the last poll"""
+        self.tokens: ram.CrashFields | None = None
+        """Last trusted Crash fields in the tracked level (token counts for the bonus round kind)"""
+        self.bonus_seen = False
+        """A bonus round was entered during this level visit"""
+        self.box_total_noted = False
 
     def step(self, snap: ram.Snapshot, received: Counter[str], checked: Collection[int]) -> Actions:
         actions = Actions()
@@ -101,6 +127,8 @@ class Watcher:
             return actions
 
         self._track_level(snap)
+        live = self._trusted_live(snap, previous)
+        self._detect_tier1(snap, live, actions)  # before _detect_checks, which forgets the level on the map
         self._detect_checks(snap, previous, checked, actions)
         self._sync_pools(snap, received, checked, actions)
         if snap.on_map:
@@ -118,13 +146,89 @@ class Watcher:
         # Lives, masks and fruit are copied out of the level only when it ends, so filler is applied on the map
         # and carries into the next level.
         actions.can_apply_filler = snap.on_map and snap.gamestate == ram.GAMESTATE_MAP
+        actions.can_apply_live_filler = live is not None
         return actions
+
+    def _trusted_live(self, snap: ram.Snapshot, previous: ram.Snapshot | None) -> ram.CrashFields | None:
+        """The Crash object's fields, when they looked like counters on this poll and the last with the same pointer"""
+        live = snap.live
+        if live is None or previous is None or previous.live is None or previous.crash_ptr != snap.crash_ptr:
+            return None
+        return live
+
+    def _detect_tier1(self, snap: ram.Snapshot, live: ram.CrashFields | None, actions: Actions) -> None:
+        level = self.level
+        in_own_level = level is not None and snap.level == level.lid and snap.gamestate == ram.GAMESTATE_PLAYING
+
+        if in_own_level and live is not None:
+            self.tokens = live
+
+        # Box milestones
+        if in_own_level:
+            boxes = snap.box_count // ram.UNIT
+            for percent in box_percents(level, self.slot.box_checks, self.slot.gem_checks):
+                if boxes >= level.box_threshold(percent):
+                    actions.locations.add(location_name_to_id[level.box_location(percent)])
+
+        # Box total, for verification: the count when the level is won (all boxes if the gem follows)
+        if (level is not None and level.boxes and not self.box_total_noted
+                and snap.gamestate == ram.GAMESTATE_LEVEL_WON and snap.level == level.lid):
+            self.box_total_noted = True
+            actions.notes.append(f"Boxes: {level.name} won with BOX_COUNT {snap.box_count // ram.UNIT} "
+                                 f"(table total {level.boxes}; equal when the gem is won)")
+
+        # Bonus rounds
+        if (level is not None and snap.level in ram.BONUS_LIDS and snap.gamestate == ram.GAMESTATE_PLAYING
+                and not self.bonus_seen):
+            self.bonus_seen = True
+            kind = self._bonus_kind(snap.level)
+            tokens = self.tokens
+            if tokens is None:
+                token_text = "unknown"
+            else:
+                token_text = (f"Tawna {tokens.tawna // ram.UNIT}, Brio {tokens.brio // ram.UNIT}, "
+                              f"Cortex {tokens.cortex // ram.UNIT}")
+            actions.notes.append(f"Bonus round from {level.name}: level ID 0x{snap.level:02X}, tokens {token_text}, "
+                                 f"counted as {kind.value if kind else 'unknown'}")
+            if self.slot.bonus_round_checks and kind is not None:
+                if kind in level.check_bonuses:
+                    actions.locations.add(location_name_to_id[level.bonus_location(kind)])
+                elif kind != Bonus.CORTEX:
+                    actions.notes.append(f"Bonus round: {level.name} has no {kind.value} bonus in the table")
+
+        # Life counts
+        lives = live.lives if live is not None else (snap.lives if snap.on_map and snap.gamestate == ram.GAMESTATE_MAP
+                                                      else None)
+        if lives is not None:
+            for count in self.slot.life_count_checks:
+                if lives >= count * ram.UNIT:
+                    actions.locations.add(location_name_to_id[life_count_location(count)])
+
+    def _bonus_kind(self, bonus_lid: int) -> Bonus | None:
+        tokens = self.tokens
+        if tokens is not None:
+            full = [kind for kind, count in ((Bonus.TAWNA, tokens.tawna), (Bonus.BRIO, tokens.brio),
+                                             (Bonus.CORTEX, tokens.cortex)) if count >= 3 * ram.UNIT]
+            if len(full) == 1:
+                return full[0]
+        if bonus_lid == ram.LID_BONUS_BRIO:
+            return Bonus.BRIO
+        if bonus_lid == ram.LID_BONUS_CORTEX:
+            return Bonus.CORTEX
+        if bonus_lid == ram.LID_BONUS_GENERIC:
+            return None
+        return Bonus.TAWNA
 
     # Level tracking
 
     def _track_level(self, snap: ram.Snapshot) -> None:
         if snap.level in LEVEL_BY_LID and snap.level != ram.LID_MAP:
-            self.level = LEVEL_BY_LID[snap.level]
+            level = LEVEL_BY_LID[snap.level]
+            if level is not self.level:
+                self.tokens = None
+                self.bonus_seen = False
+                self.box_total_noted = False
+            self.level = level
 
     def _detect_checks(self, snap: ram.Snapshot, previous: ram.Snapshot | None, checked: Collection[int],
                        actions: Actions) -> None:

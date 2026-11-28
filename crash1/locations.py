@@ -1,6 +1,6 @@
 from BaseClasses import Location
 
-from .data import FINAL_BOSS, GEM_LEVELS, KEYS, LEVELS
+from .data import BONUS_LEVELS, BOX_LEVELS, BOX_MILESTONES, FINAL_BOSS, GEM_LEVELS, KEYS, LEVELS, LIFE_COUNTS, Bonus
 from .items import BASE_ID, GAME_NAME
 
 
@@ -15,6 +15,14 @@ CORTEX_EVENT = FINAL_BOSS.complete_location
 LEVEL_COMPLETE_OFFSET = 0x000
 GEM_OFFSET = 0x100
 KEY_OFFSET = 0x200
+LIFE_COUNT_OFFSET = 0x300
+BONUS_OFFSET: dict[Bonus, int] = {Bonus.TAWNA: 0x400, Bonus.BRIO: 0x500}
+BOX_OFFSET: dict[int, int] = {25: 0x600, 50: 0x700, 75: 0x800}
+
+
+def life_count_location(lives: int) -> str:
+    return f"Reach {lives} Lives"
+
 
 location_name_to_id: dict[str, int] = {
     **{
@@ -24,6 +32,17 @@ location_name_to_id: dict[str, int] = {
     },
     **{level.gem_location: BASE_ID + GEM_OFFSET + level.lid for level in GEM_LEVELS},
     **{key.location: BASE_ID + KEY_OFFSET + key.pool2_bit for key in KEYS},
+    **{life_count_location(lives): BASE_ID + LIFE_COUNT_OFFSET + lives for lives in LIFE_COUNTS},
+    **{
+        level.bonus_location(bonus): BASE_ID + BONUS_OFFSET[bonus] + level.lid
+        for level in BONUS_LEVELS
+        for bonus in level.check_bonuses
+    },
+    **{
+        level.box_location(percent): BASE_ID + BOX_OFFSET[percent] + level.lid
+        for level in BOX_LEVELS
+        for percent in BOX_MILESTONES
+    },
 }
 
 location_name_groups: dict[str, set[str]] = {
@@ -31,4 +50,7 @@ location_name_groups: dict[str, set[str]] = {
     "Bosses": {level.complete_location for level in LEVELS if level.is_boss and level is not FINAL_BOSS},
     "Gems": {level.gem_location for level in GEM_LEVELS},
     "Keys": {key.location for key in KEYS},
+    "Life Counts": {life_count_location(lives) for lives in LIFE_COUNTS},
+    "Bonus Rounds": {level.bonus_location(bonus) for level in BONUS_LEVELS for bonus in level.check_bonuses},
+    "Boxes": {level.box_location(percent) for level in BOX_LEVELS for percent in BOX_MILESTONES},
 }

@@ -136,10 +136,21 @@ is not known to have moved colored gems. Confirm both columns on PS1 ❓.
 | **Level complete: `<level>`** | **32** = 30 nodes (25 levels + 5 bosses, not Cortex) + 2 secrets | `LEVELCOUNT`/progress rising, or a level → map transition after a win ❓ | Bosses included ✅ |
 | **Gem: `<level>`** | 26 (clear + colored) | a new bit in `ITEMPOOL1`/`ITEMPOOL2` | **Option** `gem_checks` on/off ✅ |
 | **Key: `<level>` Cortex Bonus** | 2 | `ITEMPOOL2` bits 10 and 20 | Always on ✅ |
+| **Bonus round: `<level>` Tawna/Brio Bonus** | 19 | entering a bonus level (`BONUS_LIDS`) from the level; kind from the Crash object's token fields, else the bonus level ID | **Option** `bonus_round_checks`, on (v0.3) |
+| **Boxes: `<level>` 25/50/75%** | up to 78 | `BOX_COUNT` (0x80061984, << 8) in the played level vs. the level's box total (community table, logged on every win) | **Option** `box_checks` off/half/quarters (v0.3); 75% needs the level's gem path items |
+| **Reach `N` Lives** | chosen, 5-99 | lives from the Crash object in a level, `LIFE_COUNT` on the map | **Option** `life_count_checks`, default 10/20/30 (v0.3); region = map node ceil(N/3) |
 | *Event:* Defeat Cortex | 1 (locked "Victory") | Cortex level won, or the ending state ❓ | Goal, not a check |
 
 🔧 Location IDs: start at a base ID with one range per group (levels `+0..99`, gems
-`+100..199`, keys `+200..209`). IDs are **fixed forever** once released.
+`+100..199`, keys `+200..209`; v0.3: life counts `+0x300 + N`, Tawna `+0x400 + lid`, Brio `+0x500 + lid`, boxes
+`+0x600/0x700/0x800 + lid` for 25/50/75%). IDs are **fixed forever** once released.
+
+**In-level counters (v0.3).** In a level, lives, fruit and tokens are fields of the Crash GOOL object (pointer
+`crash` at 0x80056480; `field-0` fruit, `field-1` lives, `field-6/7/8` Cortex/Brio/Tawna tokens at object + 0x160 +
+4 * n). WillC copies them from the globals when it spawns and back when the level ends, which is why writing
+`LIFE_COUNT` mid-level was lost. The client trusts the fields only when they look like counters on two polls in a
+row with the same pointer, and guards every write on the pointer and the field. Aku Aku masks are in the DoctC
+object (`field-10`) with a state machine around them, so masks stay on the map.
 
 ## 5. Items
 

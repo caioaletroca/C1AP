@@ -19,10 +19,17 @@ the map, the colored gems and the secret keys come back to you as items.
 - **Colored gems.** Green, Orange, Blue, Red, Purple and Yellow are items. Their gem paths appear once you
   receive them.
 - **Keys.** The keys to *Whole Hog* and *Fumbling in the Dark* are items.
-- **Filler.** Extra lives, Aku Aku masks and Wumpa fruit.
+- **Filler.** Extra lives, Aku Aku masks and Wumpa fruit. Extra lives and Wumpa fruit arrive right away, even in
+  the middle of a level; masks wait for the map.
 - **Traps** (optional). *No Lives Trap*: you play your next level with 0 lives, then they come back on the map.
 
-The locations are finishing each level, defeating each boss, each level's gem (optional) and the two keys.
+The locations are:
+
+- Finishing each level and defeating each boss.
+- Each level's gem (optional) and the two keys.
+- Reaching each Tawna and Brio bonus round (optional, on by default): 19 checks.
+- Breaking 25%, 50% and 75% of each level's boxes (optional): up to 78 checks.
+- Reaching chosen life counts, such as 10, 20 and 30 lives (optional).
 
 ## Goal
 
@@ -35,6 +42,9 @@ Defeat Dr. N. Cortex (`cortex`), or defeat him while holding all 26 gems (`all_g
 | `goal` | `cortex`, `all_gems` | `cortex` |
 | `level_shuffle` | `true` / `false` | `true` |
 | `gem_checks` | `true` / `false`: gems are locations | `true` |
+| `box_checks` | `off`, `half` (50%), `quarters` (25/50/75%) of each level's boxes | `off` |
+| `bonus_round_checks` | `true` / `false`: reaching each Tawna and Brio bonus round | `true` |
+| `life_count_checks` | life counts from 5 to 99, for example `["10", "20", "30"]` | `["10", "20", "30"]` |
 | `starting_nodes` | 1-10 map nodes open at the start | 3 |
 | `trap_chance` | 0-100: % of filler replaced by a No Lives Trap | 0 |
 | `death_link` | `true` / `false` | `false` |
@@ -71,6 +81,8 @@ The full guides are the [setup guide](crash1/docs/setup_en.md) and the
 - A received gem path appears the next time you enter that level, because the game only reads gems when a level
   loads.
 - Avoid loading save states in the middle of a level.
+- Box totals come from a community table and are being verified: the client logs the real count each time a level
+  is won (`[C1AP verify]` lines). Please include those lines in bug reports.
 
 ## Development
 
@@ -92,6 +104,7 @@ AP_TEST_WORLDS=crash1 python -m pytest worlds/crash1/test test/general
 | `crash1/shuffle.py` | Level-order shuffle |
 | `crash1/ram.py` | RAM map (addresses marked `VERIFY` are unconfirmed) |
 | `crash1/watcher.py` | Client game logic, pure and unit-tested |
+| `crash1/filler.py` | Which filler to apply next and how (globals on the map, the Crash object in a level) |
 | `crash1/client.py` | BizHawk I/O |
 | `tools/` | BizHawk Lua scripts used to verify the RAM map, and the results log |
 | `docs/DESIGN.md` | Design notes |
@@ -111,7 +124,10 @@ they were fixed. Nothing in the client was marked as working before it was seen 
 
 ## Credits
 
-- RAM and level data: the Crash 1 decompilation ([esplonky/c1](https://github.com/esplonky/c1)) and GOOL dumps.
+- RAM and level data: the Crash 1 decompilations ([esplonky/c1](https://github.com/esplonky/c1),
+  [khasinski/crash-bandicoot-decomp](https://github.com/khasinski/crash-bandicoot-decomp)) and GOOL dumps
+  ([ManDude/goocdump](https://github.com/ManDude/goocdump)).
+- Box totals and bonus rounds per level: the [Crash Bandicoot Wiki](https://crashbandicoot.fandom.com/wiki/Crash_Bandicoot_(game)).
 - Built on Archipelago's BizHawk client framework.
 
 ## License

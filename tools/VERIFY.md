@@ -82,6 +82,25 @@ by chance, then drifted in Jungle Rollers). ✅ `RESPAWNCOUNT` 0x800618A0 (from 
 two TNT deaths, checkpoint, two more deaths → 0 → 0x100 → 0x200 → 0x300 → 0x400. `DEATHCOUNT` stayed 0 for the first
 two deaths: it counts deaths since the last checkpoint. Tools: `c1ap_lives_search.lua`, `c1ap_lives_watch.lua`.
 
+**Round 8 (v0.3 Tier 1, one batch).** Everything below came from the decompilation and a community table, not from
+the game. One seed tests it all; the client log's `[C1AP verify]` lines carry the data, so paste the whole client log.
+
+Seed YAML: `box_checks: quarters`, `bonus_round_checks: true`, `life_count_checks: ["5", "10"]`,
+`level_shuffle: false`, `starting_nodes: 10`, `trap_chance: 0`.
+
+| # | Do | Expect |
+|---|---|---|
+| 8.1 | Enter N. Sanity Beach | log `Crash object 0x80...... in level 0x09: lives 4, fruit 0, ... plausible True` with lives/fruit matching the HUD |
+| 8.2 | In the level, `/send <slot> Extra Life` from another client (or `!getitem Extra Life`) | HUD lives +1 right away; log `Extra Life applied in the level.` |
+| 8.3 | Same with `Wumpa Fruit Bundle` (twice, then pick fruit until near 100) | fruit +10 on the HUD; crossing 100 gives a life |
+| 8.4 | `!getitem Aku Aku Mask` in the level | nothing until the map; the next level starts with Aku Aku |
+| 8.5 | Break 13 boxes in N. Sanity Beach (49 boxes: 13 / 25 / 37) | `25% Boxes` check at the 13th box, then 50% and 75% |
+| 8.6 | Finish N. Sanity Beach with every box | log `Boxes: N. Sanity Beach won with BOX_COUNT 49 (table total 49 ...)` |
+| 8.7 | Get 3 Tawna tokens in Jungle Rollers | `Jungle Rollers - Tawna Bonus` on entering the bonus; log line with the bonus level ID and tokens |
+| 8.8 | Rolling Stones: get the 3 Brio tokens (and Tawna's if you can) | `Rolling Stones - Brio Bonus` (and Tawna) checks; note the level IDs in the log |
+| 8.9 | Reach 5, then 10 lives (in a level and on the map) | `Reach 5 Lives` / `Reach 10 Lives` when the HUD shows it |
+| 8.10 | Die in a level after 8.2 | lives drop by one as usual (the field is the real counter) |
+
 **No Lives Trap (trap test seed):** ✅ `/send Crash No Lives Trap` on the map → lives 0 for the next level
 (N. Sanity Beach), back on the map → "No Lives Trap over: 4 lives". A second trap armed again right after.
 ✅ Game over with the second trap armed: died once with 0 lives → Game Over → Continue → 4 lives (vanilla), trap

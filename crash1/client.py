@@ -10,7 +10,7 @@ from NetUtils import ClientStatus
 import worlds._bizhawk as bizhawk
 from worlds._bizhawk.client import BizHawkClient
 
-from . import ram, trap
+from . import filler, ram, trap
 from .items import APPLIED_ON_MAP, GAME_NAME, NO_LIVES_TRAP, item_name_to_id
 from .trap import TrapState
 from .watcher import SlotInfo, Watcher
@@ -67,10 +67,15 @@ async def _store(ctx: "BizHawkClientContext", key: str, value: Any) -> None:
 
 
 async def _write_word(ctx: "BizHawkClientContext", address: int, value: int, guard: int) -> bool:
+    return await _write_words(ctx, {address: value}, {address: guard})
+
+
+async def _write_words(ctx: "BizHawkClientContext", writes: dict[int, int], guards: dict[int, int]) -> bool:
+    """Write every word only if every guard still holds (all in the same frame)"""
     return await bizhawk.guarded_write(
         ctx.bizhawk_ctx,
-        [(ram.offset(address), ram.word_bytes(value), ram.DOMAIN)],
-        [(ram.offset(address), ram.word_bytes(guard), ram.DOMAIN)],
+        [(ram.offset(address), ram.word_bytes(value), ram.DOMAIN) for address, value in writes.items()],
+        [(ram.offset(address), ram.word_bytes(value), ram.DOMAIN) for address, value in guards.items()],
     )
 
 
@@ -85,6 +90,7 @@ class Crash1Client(BizHawkClient):
         self.sent: set[int] = set()
         self.goal_sent = False
         self.notify_set = False
+        self.crash_ptr_logged = 0
 
     async def validate_rom(self, ctx: "BizHawkClientContext") -> bool:
         try:
@@ -125,8 +131,12 @@ class Crash1Client(BizHawkClient):
             self.notify_set = True
 
         try:
-            globals_block, lid_block = await bizhawk.read(ctx.bizhawk_ctx, ram.read_requests())
-            snap = ram.parse(globals_block, lid_block)
+            globals_block, lid_block, crash_ptr_block = await bizhawk.read(ctx.bizhawk_ctx, ram.read_requests())
+            snap = ram.parse(globals_block, lid_block, crash_ptr_block)
+            if snap.crash_readable:
+                fields_block = (await bizhawk.read(ctx.bizhawk_ctx, [ram.crash_request(snap.crash_ptr)]))[0]
+                snap = ram.with_crash(snap, fields_block)
+                self._log_crash_object(snap)
 
             received = Counter(ITEM_ID_TO_NAME.get(item.item, "") for item in ctx.items_received)
             checked = ctx.checked_locations | self.sent
@@ -146,6 +156,9 @@ class Crash1Client(BizHawkClient):
                 self.sent |= new_locations
                 await ctx.check_locations(new_locations)
 
+            for note in actions.notes:
+                logger.info(f"[C1AP verify] {note}")
+
             if actions.died and "DeathLink" in ctx.tags:
                 await ctx.send_death(f"{ctx.player_names[ctx.slot]} lost a life.")
 
@@ -156,8 +169,8 @@ class Crash1Client(BizHawkClient):
 
             if await self._advance_trap(ctx, snap):
                 return  # lives were just restored; filler waits for the next poll
-            if actions.can_apply_filler:
-                await self._apply_filler(ctx, snap)
+            if actions.can_apply_filler or actions.can_apply_live_filler:
+                await self._apply_filler(ctx, snap, on_map=actions.can_apply_filler)
         except bizhawk.RequestFailedError:
             pass  # emulator busy or disconnected; try again next poll
 
@@ -176,32 +189,46 @@ class Crash1Client(BizHawkClient):
             await _store(ctx, key, None if new_state is None else new_state.to_json())
         return restore is not None
 
-    async def _apply_filler(self, ctx: "BizHawkClientContext", snap: ram.Snapshot) -> None:
-        """Apply the next filler item or trap not yet applied. The count lives in data storage so it survives restarts."""
+    def _log_crash_object(self, snap: ram.Snapshot) -> None:
+        """Once per pointer value: what the Crash object holds, to verify the field offsets in a test round"""
+        if snap.crash is None or snap.crash_ptr == self.crash_ptr_logged:
+            return
+        self.crash_ptr_logged = snap.crash_ptr
+        fields = snap.crash
+        logger.info(f"[C1AP verify] Crash object 0x{snap.crash_ptr:08X} in level 0x{snap.level:02X}: "
+                    f"lives {fields.lives / ram.UNIT:g}, fruit {fields.fruit / ram.UNIT:g}, tokens "
+                    f"T{fields.tawna / ram.UNIT:g} B{fields.brio / ram.UNIT:g} C{fields.cortex / ram.UNIT:g}, "
+                    f"plausible {fields.plausible} (globals: lives {snap.lives / ram.UNIT:g}, "
+                    f"fruit {snap.fruit / ram.UNIT:g})")
+
+    async def _apply_filler(self, ctx: "BizHawkClientContext", snap: ram.Snapshot, on_map: bool) -> None:
+        """Apply one filler item or trap not yet applied: anything on the map, lives and fruit in a level.
+        Applied counts per name live in data storage so they survive restarts."""
         key = _filler_key(ctx)
         if key not in ctx.stored_data or _trap_key(ctx) not in ctx.stored_data:
             return  # not loaded yet
-        applied = int(ctx.stored_data[key] or 0)
         fillers = [name for item in ctx.items_received
                    if (name := ITEM_ID_TO_NAME.get(item.item)) in APPLIED_ON_MAP]
-        if applied >= len(fillers):
-            return
+        applied = filler.applied_counts(ctx.stored_data[key], fillers)
 
-        name = fillers[applied]
-        if name == NO_LIVES_TRAP:
-            state, lives = trap.spring(TrapState.from_json(ctx.stored_data[_trap_key(ctx)]), snap)
-            if lives is not None:
-                if not await _write_word(ctx, ram.LIFE_COUNT, lives, snap.lives):
+        for name in filler.pending(fillers, applied):
+            if name == NO_LIVES_TRAP:
+                if not on_map:
+                    continue
+                state, lives = trap.spring(TrapState.from_json(ctx.stored_data[_trap_key(ctx)]), snap)
+                if lives is not None:
+                    if not await _write_word(ctx, ram.LIFE_COUNT, lives, snap.lives):
+                        return
+                    await _store(ctx, _trap_key(ctx), state.to_json())
+                    logger.info("No Lives Trap! 0 lives for the next level.")
+            else:
+                plan = filler.plan_on_map(name, snap) if on_map else filler.plan_in_level(name, snap)
+                if plan is None:
+                    continue  # waits for the map
+                if plan.writes and not await _write_words(ctx, plan.writes, plan.guards):
                     return
-                await _store(ctx, _trap_key(ctx), state.to_json())
-                logger.info("No Lives Trap! 0 lives for the next level.")
-        else:
-            if name == "Extra Life":
-                address, value, guard = ram.LIFE_COUNT, min(snap.lives + ram.UNIT, ram.MAX_LIVES), snap.lives
-            elif name == "Aku Aku Mask":
-                address, value, guard = ram.HEALTH, min(snap.health + ram.UNIT, ram.MAX_HEALTH), snap.health
-            else:  # Wumpa Fruit Bundle
-                address, value, guard = ram.FRUIT_COUNT, min(snap.fruit + 10 * ram.UNIT, ram.MAX_FRUIT), snap.fruit
-            if not await _write_word(ctx, address, value, guard):
-                return
-        await _store(ctx, key, applied + 1)
+                if not on_map:
+                    logger.info(f"{name} applied in the level.")
+            applied[name] += 1
+            await _store(ctx, key, dict(applied))
+            return
