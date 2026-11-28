@@ -167,8 +167,8 @@ Part B, with the client (seed with `trap_chance` > 0): `!getitem <trap>` in the 
 
 | # | Test | Expect | Result |
 |---|---|---|---|
-| 9.11 | `Upside Down Trap` on the map, then enter a level | normal map; flipped in the level; normal again after 20 s of play | |
-| 9.12 | `Reverse Controls Trap` and `Button Swap Trap` in a level | both apply; each ends after its time; `restored` the game | |
+| 9.11 | `Upside Down Trap` on the map, then enter a level | `received: it starts in a level`; normal map; flipped about 3 s into the level; normal again after 20 s of play | |
+| 9.12 | `Reverse Controls Trap` and `Button Swap Trap` together in a level | Reverse first for 20 s, then 5 s normal, then Button Swap for 20 s; never both at once | |
 | 9.13 | `No Lives Trap` in a level | lives 0; back when it ends: `No Lives Trap over: N lives back.` | |
-| 9.14 | Same trap twice | time adds up (40 s) | |
-| 9.15 | Restart the client mid-trap | the trap goes on with the time left; no lives lost or doubled | |
+| 9.14 | Leave a level while traps wait, then come back | nothing starts or counts on the map; the queue goes on in the next level | |
+| 9.15 | Restart the client mid-trap, with another waiting | the trap goes on with the time left, then the waiting one; no lives lost or doubled | |

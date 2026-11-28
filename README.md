@@ -27,7 +27,8 @@ the map, the colored gems and the secret keys come back to you as items.
   - *Reverse Controls Trap*: left and right are swapped.
   - *Button Swap Trap*: jump is on Square/Circle and spin on X.
 
-  The clock stops on the map. The same trap again adds its time; different traps stack.
+  Traps wait in a queue and run one at a time, with a short break between them. They only start, and only count
+  down, while you play a level; the map always plays normally.
 
 The locations are:
 

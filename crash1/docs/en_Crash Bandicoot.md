@@ -11,7 +11,8 @@
 - Leftover slots are filled with extra lives, Aku Aku masks and Wumpa fruit. Extra lives and Wumpa fruit arrive
   right away, even in the middle of a level; Aku Aku masks wait until you are back on the map. With *Trap Chance*, some of them are
   traps instead. Each lasts *Trap Duration* seconds of play in a level (the clock stops on the map), then the game
-  goes back to normal. The same trap again adds its time; different traps stack.
+  goes back to normal. Traps wait in a queue and run one at a time, with a short break between them, and never
+  start on the map.
   - *No Lives Trap*: 0 lives, so one death is a game over. Your lives (and any you pick up meanwhile) come back when
     it ends or on the map; a game over ends the trap and they are lost.
   - *Upside Down Trap*: the camera is upside down. The HUD and the controls stay as they are.

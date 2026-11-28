@@ -9,10 +9,11 @@ Pure logic, no I/O.
 - Reverse Controls Trap: left and right are swapped (``hook``).
 - Button Swap Trap: jump is on Square/Circle and spin on X (``hook``).
 
-The clock only runs while a level (or bonus round) is being played, so the map and loading screens freeze it. The
-same trap received again adds its duration. Effects are only applied in a level and removed everywhere else, so the
-map always plays normally. The state lives in the server's data storage, so a client restart picks the traps back
-up, and the client takes the hooks out when no trap is active, also right after connecting.
+Received traps wait in a queue and run one at a time, oldest first. A trap only starts while a level (or bonus round)
+is being played, ``START_DELAY`` seconds into it, and the next one waits ``TRAP_GAP`` seconds after the previous ends.
+All clocks only run in a level, so the map and loading screens freeze them, and effects are removed everywhere
+else, so the map always plays normally. The state lives in the server's data storage, so a client restart picks the
+queue back up, and the client takes the hooks out when no trap is running, also right after connecting.
 """
 from dataclasses import dataclass, field, replace
 from typing import Any
@@ -25,37 +26,53 @@ REVERSE_CONTROLS_TRAP = "Reverse Controls Trap"
 BUTTON_SWAP_TRAP = "Button Swap Trap"
 TIMED_TRAPS: tuple[str, ...] = (NO_LIVES_TRAP, UPSIDE_DOWN_TRAP, REVERSE_CONTROLS_TRAP, BUTTON_SWAP_TRAP)
 
+START_DELAY = 3.0
+"""Seconds of play in a level before a waiting trap starts"""
+TRAP_GAP = 5.0
+"""Seconds of play between one trap ending and the next starting"""
+
 
 @dataclass(frozen=True)
 class TimedTraps:
-    remaining: dict[str, float] = field(default_factory=dict)
-    """Seconds of play left per active trap"""
+    queue: tuple[tuple[str, float], ...] = ()
+    """Traps waiting to start, oldest first: (name, seconds)"""
+    current: str | None = None
+    """The trap running now"""
+    left: float = 0.0
+    """Seconds of play left for ``current``"""
+    wait: float = 0.0
+    """Seconds of play before the next trap may start"""
     banked: int = 0
     """Lives (<< 8) held back by the No Lives Trap"""
 
     def active(self, name: str) -> bool:
-        return self.remaining.get(name, 0) > 0
+        return self.current == name
 
     @property
-    def any_active(self) -> bool:
-        return any(seconds > 0 for seconds in self.remaining.values())
+    def busy(self) -> bool:
+        """A trap runs or waits"""
+        return self.current is not None or bool(self.queue)
 
     def add(self, name: str, seconds: float) -> "TimedTraps":
-        remaining = dict(self.remaining)
-        remaining[name] = remaining.get(name, 0) + seconds
-        return replace(self, remaining=remaining)
+        return replace(self, queue=(*self.queue, (name, float(seconds))))
 
     def to_json(self) -> dict[str, Any]:
-        return {"remaining": {name: round(seconds, 1) for name, seconds in self.remaining.items() if seconds > 0},
+        return {"queue": [[name, round(seconds, 1)] for name, seconds in self.queue],
+                "current": self.current, "left": round(self.left, 1), "wait": round(self.wait, 1),
                 "banked": self.banked}
 
     @classmethod
     def from_json(cls, data: Any) -> "TimedTraps":
         if not isinstance(data, dict):
             return cls()
-        remaining = {str(name): float(seconds) for name, seconds in dict(data.get("remaining") or {}).items()
-                     if name in TIMED_TRAPS and float(seconds) > 0}
-        return cls(remaining, int(data.get("banked", 0)))
+        queue = tuple((str(entry[0]), float(entry[1])) for entry in data.get("queue") or ()
+                      if isinstance(entry, (list, tuple)) and len(entry) == 2 and entry[0] in TIMED_TRAPS
+                      and float(entry[1]) > 0)
+        current = data.get("current")
+        left = float(data.get("left", 0))
+        if current not in TIMED_TRAPS or left <= 0:
+            current, left = None, 0.0
+        return cls(queue, current, left, max(float(data.get("wait", 0)), 0.0), int(data.get("banked", 0)))
 
 
 def in_level(snap: ram.Snapshot) -> bool:
@@ -63,22 +80,28 @@ def in_level(snap: ram.Snapshot) -> bool:
     return snap.gamestate == ram.GAMESTATE_PLAYING and snap.level not in (ram.LID_MAP, ram.LID_LEVEL_END)
 
 
-def tick(state: TimedTraps, snap: ram.Snapshot, seconds: float) -> tuple[TimedTraps, list[str]]:
-    """Count down while a level is played. Returns the new state and the traps that just ended."""
+def tick(state: TimedTraps, snap: ram.Snapshot, seconds: float) -> tuple[TimedTraps, list[str], list[str]]:
+    """Run the clocks while a level is played. Returns the new state, the trap that just ended and the one that
+    just started (each list holds at most one name)."""
     if snap.gamestate == ram.GAMESTATE_GAME_OVER and state.active(NO_LIVES_TRAP):
-        remaining = {name: left for name, left in state.remaining.items() if name != NO_LIVES_TRAP}
-        return TimedTraps(remaining, 0), [NO_LIVES_TRAP]
-    if not in_level(snap) or seconds <= 0 or not state.any_active:
-        return state, []
-    remaining: dict[str, float] = {}
-    ended: list[str] = []
-    for name, left in state.remaining.items():
-        left -= seconds
+        return replace(state, current=None, left=0.0, wait=TRAP_GAP, banked=0), [NO_LIVES_TRAP], []
+    if not in_level(snap):
+        if state.current is None and state.queue and state.wait < START_DELAY:
+            state = replace(state, wait=START_DELAY)  # a level must be underway before the next trap
+        return state, [], []
+    if seconds <= 0:
+        return state, [], []
+    if state.current is not None:
+        left = state.left - seconds
         if left > 0:
-            remaining[name] = left
-        else:
-            ended.append(name)
-    return replace(state, remaining=remaining), ended
+            return replace(state, left=left), [], []
+        return replace(state, current=None, left=0.0, wait=TRAP_GAP), [state.current], []
+    if state.wait > 0:
+        return replace(state, wait=max(state.wait - seconds, 0.0)), [], []
+    if state.queue:
+        (name, duration), *rest = state.queue
+        return replace(state, queue=tuple(rest), current=name, left=duration), [], [name]
+    return state, [], []
 
 
 @dataclass

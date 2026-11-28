@@ -210,12 +210,15 @@ class Crash1Client(BizHawkClient):
         self.last_tick = now
 
         stored = TimedTraps.from_json(ctx.stored_data[key])
-        state, ended = timed.tick(stored, snap, elapsed)
+        state, ended, started = timed.tick(stored, snap, elapsed)
         for name in ended:
             if name == timed.NO_LIVES_TRAP and snap.gamestate == ram.GAMESTATE_GAME_OVER:
                 logger.info("No Lives Trap over: game over, the banked lives are lost.")
             else:
                 logger.info(f"{name} over.")
+        for name in started:
+            waiting = f" ({len(state.queue)} more waiting)" if state.queue else ""
+            logger.info(f"{name}! {state.left:g} seconds.{waiting}")
 
         await self._find_hook_calls(ctx)
         calls = sorted(self.hook_calls or {})
@@ -234,8 +237,8 @@ class Crash1Client(BizHawkClient):
             current = {address: struct.unpack_from("<I", block)[0] for address, block in zip(calls, blocks[1:])}
             await self._sync_hooks(ctx, out.flags, blocks[0], current)
 
-        changed = bool(ended) or state.banked != stored.banked
-        if changed or (state.any_active and now - self.last_trap_save >= TRAP_SAVE_INTERVAL):
+        changed = bool(ended or started) or state.banked != stored.banked
+        if changed or (state.busy and now - self.last_trap_save >= TRAP_SAVE_INTERVAL):
             if state.to_json() != stored.to_json():
                 await _store(ctx, key, state.to_json())
             self.last_trap_save = now
@@ -333,7 +336,8 @@ class Crash1Client(BizHawkClient):
                 seconds = int(ctx.slot_data.get("trap_duration", 20))
                 state = TimedTraps.from_json(ctx.stored_data[_timed_key(ctx)]).add(name, seconds)
                 await _store(ctx, _timed_key(ctx), state.to_json())
-                logger.info(f"{name}! {seconds} seconds of play.")
+                ahead = len(state.queue) - 1 + (state.current is not None)
+                logger.info(f"{name} received: it starts in a level" + (f", after {ahead} more." if ahead else "."))
             else:
                 plan = filler.plan_on_map(name, snap) if on_map else filler.plan_in_level(name, snap)
                 if plan is None:
