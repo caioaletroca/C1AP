@@ -106,9 +106,9 @@ class Crash1Client(BizHawkClient):
         self.notify_set = False
         self.crash_ptr_logged = 0
         self.unreadable_logged = -1
-        self.pad_call: int | None = None
-        """Address of Pad_Update's ``jal PadRead``, found once"""
-        self.pad_call_missing_logged = False
+        self.hook_calls: dict[int, tuple[int, int]] | None = None
+        """Call sites the traps hook, {address: (original jal, hooked jal)}, found once"""
+        self.hook_calls_missing_logged = False
         self.last_tick: float | None = None
         self.last_trap_save = 0.0
 
@@ -217,22 +217,22 @@ class Crash1Client(BizHawkClient):
             else:
                 logger.info(f"{name} over.")
 
-        await self._find_pad_call(ctx)
-        requests = [(ram.offset(ram.CAM_ROT_Z), 4, ram.DOMAIN), (ram.offset(hook.CAVE), hook.CAVE_SIZE, ram.DOMAIN)]
-        if self.pad_call is not None:
-            requests.append((ram.offset(self.pad_call), 4, ram.DOMAIN))
+        await self._find_hook_calls(ctx)
+        calls = sorted(self.hook_calls or {})
+        requests = [(ram.offset(hook.CAVE), hook.CAVE_SIZE, ram.DOMAIN)]
+        requests += [(ram.offset(address), 4, ram.DOMAIN) for address in calls]
         blocks = await bizhawk.read(ctx.bizhawk_ctx, requests)
-        cam_rot_z = struct.unpack_from("<I", blocks[0])[0]
 
-        out = timed.plan(state, snap, cam_rot_z)
+        out = timed.plan(state, snap)
         lives_changed = False
         if out.writes and await _write_words(ctx, out.writes, out.guards):
             state = out.state
-            lives_changed = any(address != ram.CAM_ROT_Z for address in out.writes)
+            lives_changed = True
             for note in out.notes:
                 logger.info(note)
-        if self.pad_call is not None:
-            await self._sync_hook(ctx, out.flags, blocks[1], struct.unpack_from("<I", blocks[2])[0])
+        if calls:
+            current = {address: struct.unpack_from("<I", block)[0] for address, block in zip(calls, blocks[1:])}
+            await self._sync_hooks(ctx, out.flags, blocks[0], current)
 
         changed = bool(ended) or state.banked != stored.banked
         if changed or (state.any_active and now - self.last_trap_save >= TRAP_SAVE_INTERVAL):
@@ -241,36 +241,43 @@ class Crash1Client(BizHawkClient):
             self.last_trap_save = now
         return lives_changed
 
-    async def _find_pad_call(self, ctx: "BizHawkClientContext") -> None:
-        if self.pad_call is not None or self.pad_call_missing_logged:
+    async def _find_hook_calls(self, ctx: "BizHawkClientContext") -> None:
+        if self.hook_calls is not None or self.hook_calls_missing_logged:
             return
-        block = (await bizhawk.read(ctx.bizhawk_ctx, [(ram.offset(hook.PAD_UPDATE), hook.PAD_UPDATE_SCAN,
-                                                       ram.DOMAIN)]))[0]
-        self.pad_call = hook.find_call(block)
-        if self.pad_call is None:
-            self.pad_call_missing_logged = True
-            logger.info("[C1AP verify] Pad_Update's call to PadRead was not found: the control traps do nothing.")
+        pad, gfx = await bizhawk.read(ctx.bizhawk_ctx, [
+            (ram.offset(hook.PAD_UPDATE), hook.PAD_UPDATE_SCAN, ram.DOMAIN),
+            (ram.offset(hook.GFX_UPDATE_MATRICES), hook.GFX_SCAN, ram.DOMAIN),
+        ])
+        self.hook_calls = hook.find_calls(pad, gfx)
+        if self.hook_calls is None:
+            self.hook_calls_missing_logged = True
+            logger.info("[C1AP verify] The calls the traps hook were not found: "
+                        "Upside Down, Reverse Controls and Button Swap do nothing.")
 
-    async def _sync_hook(self, ctx: "BizHawkClientContext", flags: int, cave: bytes, call: int) -> None:
-        """Point Pad_Update's call at the swap routine while a control trap runs, and back at PadRead otherwise"""
-        assert self.pad_call is not None
+    async def _sync_hooks(self, ctx: "BizHawkClientContext", flags: int, cave: bytes, current: dict[int, int]) -> None:
+        """Point the hooked calls at the cave while a hook trap runs, and back at the game's code otherwise"""
+        assert self.hook_calls is not None
         cave_flags = struct.unpack_from("<I", cave)[0]
+        hooked = {address for address, word in current.items() if word == self.hook_calls[address][1]}
         if flags:
-            if cave[4:] != hook.ROUTINE_BYTES:
-                await bizhawk.write(ctx.bizhawk_ctx, [(ram.offset(hook.CODE), hook.ROUTINE_BYTES, ram.DOMAIN)])
-                if call == hook.JAL_CAVE:
-                    logger.info("[C1AP verify] The controller routine changed while in use; rewritten.")
-                return  # hooked on the next poll, once the routine reads back intact
+            if cave[4:] != hook.CAVE_CODE_BYTES:
+                await bizhawk.write(ctx.bizhawk_ctx, [(ram.offset(hook.CODE), hook.CAVE_CODE_BYTES, ram.DOMAIN)])
+                if hooked:
+                    logger.info("[C1AP verify] The trap code changed while in use; rewritten.")
+                return  # hooked on the next poll, once the code reads back intact
             writes: dict[int, int] = {}
             guards: dict[int, int] = {}
             if cave_flags != flags:
                 writes[hook.FLAGS] = flags
-            if call == hook.JAL_PAD_READ:
-                writes[self.pad_call], guards[self.pad_call] = hook.JAL_CAVE, hook.JAL_PAD_READ
+            for address, (original, patched) in self.hook_calls.items():
+                if current[address] == original:
+                    writes[address], guards[address] = patched, original
             if writes:
                 await _write_words(ctx, writes, guards)
-        elif call == hook.JAL_CAVE:
-            await _write_words(ctx, {self.pad_call: hook.JAL_PAD_READ, hook.FLAGS: 0}, {self.pad_call: hook.JAL_CAVE})
+        elif hooked:
+            # Calls back first; the flags are cleared on the next poll
+            await _write_words(ctx, {address: self.hook_calls[address][0] for address in hooked},
+                               {address: self.hook_calls[address][1] for address in hooked})
         elif cave_flags:
             await _write_words(ctx, {hook.FLAGS: 0}, {})
 

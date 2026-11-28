@@ -1,25 +1,31 @@
 -- C1AP round 9: the v0.4 timed traps, triggered by keyboard (no client needed).
 -- Keys are from the ones BizHawk leaves free here (B C G H J L M N O R U V):
---   H  toggle Upside Down camera  (CAM_ROT_Z = 0x800, held every frame while on)
---   J  No Lives for 20 seconds    (Crash's lives field = 0, banked and given back)
---   L  toggle Reverse Controls    (left <-> right, through the pad hook)
---   M  toggle Button Swap         (X <-> Square/Circle, through the pad hook)
+--   H  toggle Upside Down        (sin/cos of the camera roll, through the hook)
+--   J  No Lives for 20 seconds   (Crash's lives field = 0, banked and given back)
+--   L  toggle Reverse Controls   (left <-> right, through the hook)
+--   M  toggle Button Swap        (X <-> Square/Circle, through the hook)
 --   U  undo everything
--- The on-screen text shows the camera roll, the pause object, the hook flags, the jal state and the cave.
--- tools/../crash1/test/test_hook.py checks ROUTINE and the constants below match crash1/hook.py.
+-- The hook: Pad_Update's jal PadRead and Gfx_UpdateMatrices' first jal sin / jal cos go to code in the cave
+-- while any flag is set, and back to the game's code when none is.
+-- crash1/test/test_hook.py checks ROUTINE and the constants below match crash1/hook.py.
 
 memory.usememorydomain("MainRAM")
 
-local CAVE = 0x8000F400          -- flags word, then the routine
+local CAVE = 0x8000F400          -- flags word, then ROUTINE
 local PAD_UPDATE = 0x800167A4
 local JAL_PAD_READ = 0x0C00F918
 local JAL_CAVE = 0x0C003D01
+local GFX_UPDATE_MATRICES = 0x80017A14
+local JAL_SIN = 0x0C00E417
+local JAL_ROLL_SIN = 0x0C003D23
+local JAL_COS = 0x0C00E434
+local JAL_ROLL_COS = 0x0C003D2A
 local CAM_ROT_Z = 0x80057878
 local PAUSE_OBJ = 0x80061964
 local CRASH_PTR = 0x800566B4
 local GAMESTATE = 0x800618D0
 local FIELD_LIVES = 0x160 + 4 * 1
-local SCAN = 0x200
+local PAD_SCAN, GFX_SCAN = 0x200, 0x80
 local NO_LIVES_FRAMES = 20 * 60
 
 local ROUTINE = {
@@ -28,7 +34,9 @@ local ROUTINE = {
   0x304B2000, 0x000B5880, 0x014B5025, 0x304BA000, 0x014B5026, 0x01495024,
   0x004A1026, 0x31090002, 0x00094842, 0x00094823, 0x304A0040, 0x000A5040,
   0x304B00A0, 0x000B582B, 0x000B5980, 0x014B5025, 0x304B00E0, 0x014B5026,
-  0x01495024, 0x004A1026, 0x03E00008, 0x27BD0018,
+  0x01495024, 0x004A1026, 0x03E00008, 0x27BD0018, 0x3C088001, 0x8D08F400,
+  0x00000000, 0x31080004, 0x00084240, 0x0800E417, 0x00882026, 0x3C088001,
+  0x8D08F400, 0x00000000, 0x31080004, 0x00084240, 0x0800E434, 0x00882026,
 }
 
 local function off(address) return address & 0x1FFFFF end
@@ -54,17 +62,35 @@ local function survey(tag)
   end
 end
 
-local function find_call()
+-- Call sites: {address, original, hooked, name}
+local function find(start, size, words, only_one)
   local found = {}
-  for address = PAD_UPDATE, PAD_UPDATE + SCAN - 4, 4 do
+  for address = start, start + size - 4, 4 do
     local word = r32(address)
-    if word == JAL_PAD_READ or word == JAL_CAVE then found[#found + 1] = address end
+    for _, w in ipairs(words) do
+      if word == w then found[#found + 1] = address end
+    end
   end
-  if #found == 1 then return found[1] end
-  return nil, #found
+  if only_one and #found ~= 1 then return nil, #found end
+  return found[1], #found
 end
 
-local function routine_ok()
+local function find_calls()
+  local pad, n = find(PAD_UPDATE, PAD_SCAN, {JAL_PAD_READ, JAL_CAVE}, true)
+  local sin = find(GFX_UPDATE_MATRICES, GFX_SCAN, {JAL_SIN, JAL_ROLL_SIN}, false)
+  local cos = find(GFX_UPDATE_MATRICES, GFX_SCAN, {JAL_COS, JAL_ROLL_COS}, false)
+  log("calls: PadRead %s (%d found), sin %s, cos %s",
+    pad and string.format("0x%08X", pad) or "MISSING", n,
+    sin and string.format("0x%08X", sin) or "MISSING", cos and string.format("0x%08X", cos) or "MISSING")
+  if not (pad and sin and cos) then return nil end
+  return {
+    {pad, JAL_PAD_READ, JAL_CAVE, "pad"},
+    {sin, JAL_SIN, JAL_ROLL_SIN, "sin"},
+    {cos, JAL_COS, JAL_ROLL_COS, "cos"},
+  }
+end
+
+local function code_ok()
   for i, word in ipairs(ROUTINE) do
     if r32(CODE + 4 * (i - 1)) ~= word then return false end
   end
@@ -78,30 +104,28 @@ local function crash_lives_address()
 end
 
 survey("start")
-local call, count = find_call()
-if call then
-  log("jal PadRead found at 0x%08X (%s)", call, r32(call) == JAL_CAVE and "already hooked" or "original")
-else
-  log("VERIFY: %d matching jal in Pad_Update (want exactly 1)", count)
-end
+local calls = find_calls()
 
-local camera_on, flags = false, 0
+local flags = 0
 local no_lives_left, banked = 0, 0
 local installed = false
 
 local function sync_hook()
-  call = call or find_call()
-  if not call then return end
+  if not calls then return end
   if flags ~= 0 then
-    if not routine_ok() then
-      if installed then log("routine changed under us, rewriting") end
+    if not code_ok() then
+      if installed then log("cave code changed under us, rewriting") end
       for i, word in ipairs(ROUTINE) do w32(CODE + 4 * (i - 1), word) end
       installed = true
     end
     w32(CAVE, flags)
-    if r32(call) == JAL_PAD_READ then w32(call, JAL_CAVE); log("hooked jal at 0x%08X", call) end
+    for _, c in ipairs(calls) do
+      if r32(c[1]) == c[2] then w32(c[1], c[3]); log("hooked %s at 0x%08X", c[4], c[1]) end
+    end
   else
-    if r32(call) == JAL_CAVE then w32(call, JAL_PAD_READ); log("restored jal at 0x%08X", call) end
+    for _, c in ipairs(calls) do
+      if r32(c[1]) == c[3] then w32(c[1], c[2]); log("restored %s at 0x%08X", c[4], c[1]) end
+    end
     if r32(CAVE) ~= 0 then w32(CAVE, 0) end
   end
 end
@@ -115,42 +139,33 @@ local function give_lives_back()
   end
 end
 
+local function toggle(bit, name)
+  flags = flags ~ bit
+  log("%s %s", name, flags & bit ~= 0 and "on" or "off")
+end
+
 local actions = {
-  H = function()
-    camera_on = not camera_on
-    if not camera_on and r32(CAM_ROT_Z) == 0x800 then w32(CAM_ROT_Z, 0) end
-    log("Upside Down %s", camera_on and "on" or "off")
-  end,
+  H = function() toggle(4, "Upside Down") end,
   J = function()
     no_lives_left = no_lives_left + NO_LIVES_FRAMES
     log("No Lives: %d frames left", no_lives_left)
   end,
-  L = function() flags = flags ~ 1; log("Reverse Controls %s", flags & 1 ~= 0 and "on" or "off") end,
-  M = function() flags = flags ~ 2; log("Button Swap %s", flags & 2 ~= 0 and "on" or "off") end,
+  L = function() toggle(1, "Reverse Controls") end,
+  M = function() toggle(2, "Button Swap") end,
   U = function()
-    camera_on, flags, no_lives_left = false, 0, 0
-    if r32(CAM_ROT_Z) == 0x800 then w32(CAM_ROT_Z, 0) end
+    flags, no_lives_left = 0, 0
     give_lives_back()
     log("all traps off")
   end,
 }
 
 local held = {}
-local last_roll = nil
 while true do
   local keys = input.get()
   for key, action in pairs(actions) do
     if keys[key] and not held[key] then action() end
     held[key] = keys[key] == true
   end
-
-  local roll = r32(CAM_ROT_Z)
-  if camera_on and roll ~= 0x800 then
-    if last_roll == 0x800 then log("game reset the camera roll to 0x%X, flipping again", roll) end
-    w32(CAM_ROT_Z, 0x800)
-    roll = 0x800
-  end
-  last_roll = roll
 
   if no_lives_left > 0 then
     local address = crash_lives_address()
@@ -168,10 +183,15 @@ while true do
   sync_hook()
   if emu.framecount() % 600 == 0 and flags == 0 and not installed then survey("periodic") end
 
-  local hooked = call and r32(call) == JAL_CAVE
-  gui.text(10, 40, string.format("roll %03X  pause %08X", roll, r32(PAUSE_OBJ)))
-  gui.text(10, 55, string.format("flags %d  jal %s  cave %s", flags,
-    call and (hooked and "HOOKED" or "orig") or "??", installed and (routine_ok() and "ok" or "BAD") or "empty"))
+  local hooked = 0
+  if calls then
+    for _, c in ipairs(calls) do
+      if r32(c[1]) == c[3] then hooked = hooked + 1 end
+    end
+  end
+  gui.text(10, 40, string.format("roll %03X  pause %08X", r32(CAM_ROT_Z) & 0xFFFF, r32(PAUSE_OBJ)))
+  gui.text(10, 55, string.format("flags %d  hooked %s  cave %s", flags, calls and (hooked .. "/3") or "??",
+    installed and (code_ok() and "ok" or "BAD") or "empty"))
   gui.text(10, 70, string.format("no lives %.1fs  banked %d", no_lives_left / 60, banked >> 8))
   emu.frameadvance()
 end

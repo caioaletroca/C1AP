@@ -95,6 +95,60 @@ class TestRoutine(unittest.TestCase):
         self.assertEqual(hook.JAL_CAVE, 0x0C003D01)  # 0x8000F404 >> 2
 
 
+def run_roll(entry: int, a0: int, flags: int) -> tuple[int, int]:
+    """Execute a sin / cos wrapper up to its jump. Returns (a0 as the jump lands, jump target)."""
+    code = {hook.CODE + 4 * index: word for index, word in enumerate(hook.CAVE_CODE)}
+    regs = [0] * 32
+    regs[4] = a0
+    regs[8] = 0xDEADBEEF
+    pc, target, pending = entry, None, None
+    for _ in range(20):
+        word = code[pc]
+        op, rs, rt, rd = word >> 26, (word >> 21) & 31, (word >> 16) & 31, (word >> 11) & 31
+        sa, funct, imm = (word >> 6) & 31, word & 63, word & 0xFFFF
+        load, pending = pending, None
+        if word == 0:
+            pass
+        elif op == 0 and funct == 0x00: regs[rd] = (regs[rt] << sa) & 0xFFFFFFFF
+        elif op == 0 and funct == 0x26: regs[rd] = regs[rs] ^ regs[rt]
+        elif op == 0x0C: regs[rt] = regs[rs] & imm
+        elif op == 0x0F: regs[rt] = imm << 16
+        elif op == 0x23:
+            address = (regs[rs] + (imm - 0x10000 if imm & 0x8000 else imm)) & 0xFFFFFFFF
+            assert address == hook.FLAGS, hex(address)
+            pending = (rt, flags)
+        elif op == 2:
+            assert target is None
+            target = (pc & 0xF0000000) | ((word & 0x03FFFFFF) << 2)
+        else:
+            raise AssertionError(f"word {word:#010x}")
+        if load is not None:
+            regs[load[0]] = load[1]
+        if target is not None and code[pc - 4] >> 26 == 2:
+            return regs[4], target  # the delay slot just ran
+        pc += 4
+    raise AssertionError("wrapper did not jump")
+
+
+class TestRoll(unittest.TestCase):
+    def test_wrappers(self) -> None:
+        for entry, target in ((hook.ROLL_SIN, hook.SIN), (hook.ROLL_COS, hook.COS)):
+            for a0 in (0, 0x123, (-0x123) & 0xFFFFFFFF, 0x7FF, 0x800, 0xFFF):
+                for flags in range(8):
+                    with self.subTest(entry=hex(entry), a0=hex(a0), flags=flags):
+                        out, jumped = run_roll(entry, a0, flags)
+                        self.assertEqual(jumped, target)
+                        want = a0 ^ 0x800 if flags & hook.FLAG_UPSIDE_DOWN else a0
+                        self.assertEqual(out, want)
+                        if flags & hook.FLAG_UPSIDE_DOWN:  # 180 degrees on the 12-bit circle
+                            self.assertEqual((out - a0) % 0x1000, 0x800)
+
+    def test_layout(self) -> None:
+        self.assertEqual(hook.CAVE_CODE[:len(hook.ROUTINE)], hook.ROUTINE)
+        self.assertEqual(hook.CAVE_SIZE, 4 + 4 * len(hook.CAVE_CODE))
+        self.assertLess(hook.CAVE + hook.CAVE_SIZE, 0x80010000)  # below the executable
+
+
 class TestFindCall(unittest.TestCase):
     def test_one_call(self) -> None:
         block = bytearray(hook.PAD_UPDATE_SCAN)
@@ -111,14 +165,39 @@ class TestFindCall(unittest.TestCase):
         self.assertIsNone(hook.find_call(bytes(block)))
 
 
+class TestFindCalls(unittest.TestCase):
+    def test_all_three(self) -> None:
+        pad = bytearray(hook.PAD_UPDATE_SCAN)
+        struct.pack_into("<I", pad, 0x40, hook.JAL_PAD_READ)
+        gfx = bytearray(hook.GFX_SCAN)
+        struct.pack_into("<I", gfx, 0x08, hook.jal(0x80026138))  # Level_Noop
+        struct.pack_into("<I", gfx, 0x18, hook.JAL_ROLL_SIN)
+        struct.pack_into("<I", gfx, 0x20, hook.JAL_COS)
+        struct.pack_into("<I", gfx, 0x50, hook.JAL_SIN)  # later calls (rot x) are left alone
+        calls = hook.find_calls(bytes(pad), bytes(gfx))
+        self.assertEqual(calls, {
+            hook.PAD_UPDATE + 0x40: (hook.JAL_PAD_READ, hook.JAL_CAVE),
+            hook.GFX_UPDATE_MATRICES + 0x18: (hook.JAL_SIN, hook.JAL_ROLL_SIN),
+            hook.GFX_UPDATE_MATRICES + 0x20: (hook.JAL_COS, hook.JAL_ROLL_COS),
+        })
+
+    def test_missing(self) -> None:
+        pad = bytearray(hook.PAD_UPDATE_SCAN)
+        struct.pack_into("<I", pad, 0x40, hook.JAL_PAD_READ)
+        self.assertIsNone(hook.find_calls(bytes(pad), bytes(hook.GFX_SCAN)))
+
+
 class TestLuaScript(unittest.TestCase):
     def test_lua_routine_matches(self) -> None:
-        """tools/c1ap_trap_test.lua carries its own copy of the routine; it must be the same code"""
+        """tools/c1ap_trap_test.lua carries its own copy of the cave code; it must be the same"""
         text = (TOOLS / "c1ap_trap_test.lua").read_text(encoding="utf-8")
         block = re.search(r"ROUTINE = \{(.*?)\}", text, re.S)
         self.assertIsNotNone(block)
         words = tuple(int(word, 16) for word in re.findall(r"0x([0-9A-Fa-f]{8})", block.group(1)))
-        self.assertEqual(words, hook.ROUTINE)
+        self.assertEqual(words, hook.CAVE_CODE)
         for name, value in (("CAVE", hook.CAVE), ("PAD_UPDATE", hook.PAD_UPDATE),
-                            ("JAL_PAD_READ", hook.JAL_PAD_READ), ("JAL_CAVE", hook.JAL_CAVE)):
+                            ("JAL_PAD_READ", hook.JAL_PAD_READ), ("JAL_CAVE", hook.JAL_CAVE),
+                            ("GFX_UPDATE_MATRICES", hook.GFX_UPDATE_MATRICES),
+                            ("JAL_SIN", hook.JAL_SIN), ("JAL_ROLL_SIN", hook.JAL_ROLL_SIN),
+                            ("JAL_COS", hook.JAL_COS), ("JAL_ROLL_COS", hook.JAL_ROLL_COS)):
             self.assertRegex(text, rf"local {name} = 0x{value:08X}\b", name)

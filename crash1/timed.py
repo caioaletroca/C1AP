@@ -4,15 +4,15 @@ Pure logic, no I/O.
 - No Lives Trap: lives are 0 while it lasts, so one death is a game over. Lives you have (and pick up meanwhile) are
   banked and given back when it ends, or on the map, where lives show normally until the next level. A game over
   ends the trap and the banked lives are lost, as with any game over.
-- Upside Down Trap: the camera rolls 180 degrees (``ram.CAM_ROT_Z``). The HUD stays upright and the controls are not
-  flipped with the view.
+- Upside Down Trap: the camera rolls 180 degrees (``hook``). The HUD stays upright and the controls are not flipped
+  with the view.
 - Reverse Controls Trap: left and right are swapped (``hook``).
 - Button Swap Trap: jump is on Square/Circle and spin on X (``hook``).
 
 The clock only runs while a level (or bonus round) is being played, so the map and loading screens freeze it. The
 same trap received again adds its duration. Effects are only applied in a level and removed everywhere else, so the
 map always plays normally. The state lives in the server's data storage, so a client restart picks the traps back
-up, and the client clears leftover effects (camera roll, hook) on connect when no trap is active.
+up, and the client takes the hooks out when no trap is active, also right after connecting.
 """
 from dataclasses import dataclass, field, replace
 from typing import Any
@@ -91,19 +91,15 @@ class Plan:
     notes: list[str] = field(default_factory=list)
 
 
-def plan(state: TimedTraps, snap: ram.Snapshot, cam_rot_z: int) -> Plan:
+def plan(state: TimedTraps, snap: ram.Snapshot) -> Plan:
     """RAM writes that make the game match the active traps. The new state only holds if the writes succeed."""
     out = Plan(state)
     playing = in_level(snap)
 
-    # Camera: only ever undo a roll we set
-    want = ram.CAM_ROLL_FLIPPED if playing and state.active(UPSIDE_DOWN_TRAP) else 0
-    if cam_rot_z != want and (want or cam_rot_z == ram.CAM_ROLL_FLIPPED):
-        out.writes[ram.CAM_ROT_Z], out.guards[ram.CAM_ROT_Z] = want, cam_rot_z
-
     if playing:
         out.flags = ((hook.FLAG_REVERSE_X if state.active(REVERSE_CONTROLS_TRAP) else 0)
-                     | (hook.FLAG_SWAP_BUTTONS if state.active(BUTTON_SWAP_TRAP) else 0))
+                     | (hook.FLAG_SWAP_BUTTONS if state.active(BUTTON_SWAP_TRAP) else 0)
+                     | (hook.FLAG_UPSIDE_DOWN if state.active(UPSIDE_DOWN_TRAP) else 0))
 
     # No Lives: bank whatever the Crash object holds while active; give it back when over or on the map
     live = snap.live

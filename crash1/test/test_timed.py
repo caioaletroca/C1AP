@@ -9,7 +9,6 @@ from ..timed import (
 from .test_tier1 import PTR, U, crash
 from .test_watcher import MAP, lid
 
-FLIP = ram.CAM_ROLL_FLIPPED
 LIVES = ram.field_address(PTR, ram.FIELD_LIVES)
 
 
@@ -55,66 +54,50 @@ class TestClock(unittest.TestCase):
         self.assertEqual(TimedTraps.from_json({"remaining": {"Unknown": 5}}), TimedTraps())
 
 
-class TestCamera(unittest.TestCase):
-    def test_flips_in_a_level(self) -> None:
-        out = timed.plan(TimedTraps().add(UPSIDE_DOWN_TRAP, 20), level(), 0)
-        self.assertEqual(out.writes, {ram.CAM_ROT_Z: FLIP})
-        self.assertEqual(out.guards, {ram.CAM_ROT_Z: 0})
-
-    def test_nothing_when_already_flipped(self) -> None:
-        self.assertFalse(timed.plan(TimedTraps().add(UPSIDE_DOWN_TRAP, 20), level(), FLIP).writes)
-
-    def test_restored_on_the_map_and_when_over(self) -> None:
-        self.assertEqual(timed.plan(TimedTraps().add(UPSIDE_DOWN_TRAP, 20), MAP, FLIP).writes, {ram.CAM_ROT_Z: 0})
-        self.assertEqual(timed.plan(TimedTraps(), level(), FLIP).writes, {ram.CAM_ROT_Z: 0})
-
-    def test_never_touches_a_roll_it_did_not_set(self) -> None:
-        self.assertFalse(timed.plan(TimedTraps(), level(), 0x123).writes)
-
-
 class TestControls(unittest.TestCase):
     def test_flags_in_a_level_only(self) -> None:
-        state = TimedTraps().add(REVERSE_CONTROLS_TRAP, 20).add(BUTTON_SWAP_TRAP, 20)
-        self.assertEqual(timed.plan(state, level(), 0).flags, hook.FLAG_REVERSE_X | hook.FLAG_SWAP_BUTTONS)
-        self.assertEqual(timed.plan(state, MAP, 0).flags, 0)
-        self.assertEqual(timed.plan(TimedTraps().add(BUTTON_SWAP_TRAP, 20), level(), 0).flags,
+        state = TimedTraps().add(REVERSE_CONTROLS_TRAP, 20).add(BUTTON_SWAP_TRAP, 20).add(UPSIDE_DOWN_TRAP, 20)
+        self.assertEqual(timed.plan(state, level()).flags,
+                         hook.FLAG_REVERSE_X | hook.FLAG_SWAP_BUTTONS | hook.FLAG_UPSIDE_DOWN)
+        self.assertEqual(timed.plan(state, MAP).flags, 0)
+        self.assertEqual(timed.plan(TimedTraps().add(BUTTON_SWAP_TRAP, 20), level()).flags,
                          hook.FLAG_SWAP_BUTTONS)
 
 
 class TestNoLives(unittest.TestCase):
     def test_banks_the_lives_in_a_level(self) -> None:
-        out = timed.plan(TimedTraps().add(NO_LIVES_TRAP, 20), level(lives=7), 0)
+        out = timed.plan(TimedTraps().add(NO_LIVES_TRAP, 20), level(lives=7))
         self.assertEqual(out.writes, {LIVES: 0})
         self.assertEqual(out.guards, {LIVES: 7 * U, ram.CRASH_PTR: PTR})
         self.assertEqual(out.state.banked, 7 * U)
 
     def test_lives_picked_up_meanwhile_are_banked_too(self) -> None:
-        out = timed.plan(TimedTraps({NO_LIVES_TRAP: 10}, banked=7 * U), level(lives=1), 0)
+        out = timed.plan(TimedTraps({NO_LIVES_TRAP: 10}, banked=7 * U), level(lives=1))
         self.assertEqual(out.writes, {LIVES: 0})
         self.assertEqual(out.state.banked, 8 * U)
 
     def test_nothing_at_zero(self) -> None:
-        out = timed.plan(TimedTraps({NO_LIVES_TRAP: 10}, banked=7 * U), level(lives=0), 0)
+        out = timed.plan(TimedTraps({NO_LIVES_TRAP: 10}, banked=7 * U), level(lives=0))
         self.assertFalse(out.writes)
 
     def test_given_back_when_over(self) -> None:
-        out = timed.plan(TimedTraps(banked=7 * U), level(lives=1), 0)
+        out = timed.plan(TimedTraps(banked=7 * U), level(lives=1))
         self.assertEqual(out.writes, {LIVES: 8 * U})
         self.assertEqual(out.state.banked, 0)
         self.assertIn("7 lives back", out.notes[0])
 
     def test_given_back_on_the_map_while_active(self) -> None:
-        out = timed.plan(TimedTraps({NO_LIVES_TRAP: 10}, banked=7 * U), MAP, 0)
+        out = timed.plan(TimedTraps({NO_LIVES_TRAP: 10}, banked=7 * U), MAP)
         self.assertEqual(out.writes, {ram.LIFE_COUNT: 11 * U})
         self.assertEqual(out.guards, {ram.LIFE_COUNT: 4 * U})
         self.assertEqual(out.state.banked, 0)
         self.assertTrue(out.state.active(NO_LIVES_TRAP))
 
     def test_capped(self) -> None:
-        out = timed.plan(TimedTraps(banked=60 * U), level(lives=60), 0)
+        out = timed.plan(TimedTraps(banked=60 * U), level(lives=60))
         self.assertEqual(out.writes, {LIVES: ram.MAX_LIVES})
 
     def test_waits_without_a_trusted_object(self) -> None:
         loading = replace(level(), crash_ptr=0)
-        self.assertFalse(timed.plan(TimedTraps({NO_LIVES_TRAP: 10}), loading, 0).writes)
-        self.assertFalse(timed.plan(TimedTraps(banked=4 * U), loading, 0).writes)
+        self.assertFalse(timed.plan(TimedTraps({NO_LIVES_TRAP: 10}), loading).writes)
+        self.assertFalse(timed.plan(TimedTraps(banked=4 * U), loading).writes)
