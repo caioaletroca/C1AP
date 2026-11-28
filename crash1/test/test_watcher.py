@@ -100,6 +100,9 @@ class TestWatcher(unittest.TestCase):
         self.assertFalse(self.actions.locations)
         self.step(replace(MAP, level=0x24, gamestate=ram.GAMESTATE_EXIT_TO_MAP))
         self.assertFalse(self.actions.locations)
+        self.step(replace(self.in_level("Hog Wild"), gamestate=ram.GAMESTATE_EXIT_TO_MAP))  # the bonus ending
+        self.assertFalse(self.actions.locations)
+        self.step(self.in_level("Hog Wild"))  # playing again
         self.step(replace(self.in_level("Hog Wild"), gamestate=ram.GAMESTATE_LEVEL_WON))
         self.assertEqual(self.actions.locations, {loc("Hog Wild - Complete")})
 

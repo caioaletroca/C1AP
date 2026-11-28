@@ -114,8 +114,14 @@ class Watcher:
         self.tokens: ram.CrashFields | None = None
         """Last trusted Crash fields in the tracked level (token counts for the bonus round kind)"""
         self.bonus_seen = False
-        """A bonus round was entered during this level visit"""
+        """The current bonus round was handled (reset once play resumes in the level: Rolling Stones has two)"""
         self.box_total_noted = False
+        self.max_boxes = 0
+        """Highest BOX_COUNT seen in the tracked level this visit (dying takes boxes back)"""
+        self.in_bonus = False
+        """In a bonus round, or coming back from one: leaving a bonus round shows the exit states (0x300/0x500) with
+        the level's own ID before play resumes (BizHawk round 8), so nothing counts as a win until the level is
+        played again."""
 
     def step(self, snap: ram.Snapshot, received: Counter[str], checked: Collection[int]) -> Actions:
         actions = Actions()
@@ -166,15 +172,18 @@ class Watcher:
         # Box milestones
         if in_own_level:
             boxes = snap.box_count // ram.UNIT
+            self.max_boxes = max(self.max_boxes, boxes)
             for percent in box_percents(level, self.slot.box_checks, self.slot.gem_checks):
                 if boxes >= level.box_threshold(percent):
                     actions.locations.add(location_name_to_id[level.box_location(percent)])
 
-        # Box total, for verification: the count when the level is won (all boxes if the gem follows)
-        if (level is not None and level.boxes and not self.box_total_noted
-                and snap.gamestate == ram.GAMESTATE_LEVEL_WON and snap.level == level.lid):
+        # Box total, for verification: the most boxes seen when the level is won (all of them if the gem follows).
+        # 0x500 lasts a few frames and can be missed (BizHawk round 8, with lag), so the 0x300 exit counts too.
+        if (level is not None and level.boxes and not self.box_total_noted and not self.in_bonus
+                and snap.gamestate in (ram.GAMESTATE_LEVEL_WON, ram.GAMESTATE_EXIT_TO_MAP)):
             self.box_total_noted = True
-            actions.notes.append(f"Boxes: {level.name} won with BOX_COUNT {snap.box_count // ram.UNIT} "
+            boxes = max(self.max_boxes, snap.box_count // ram.UNIT if snap.level == level.lid else 0)
+            actions.notes.append(f"Boxes: {level.name} won with up to {boxes} boxes broken "
                                  f"(table total {level.boxes}; equal when the gem is won)")
 
         # Bonus rounds
@@ -222,12 +231,19 @@ class Watcher:
     # Level tracking
 
     def _track_level(self, snap: ram.Snapshot) -> None:
+        if snap.level in ram.BONUS_LIDS:
+            self.in_bonus = True
+        elif snap.on_map or (self.level is not None and snap.level == self.level.lid
+                             and snap.gamestate == ram.GAMESTATE_PLAYING):
+            self.in_bonus = False
+            self.bonus_seen = False
         if snap.level in LEVEL_BY_LID and snap.level != ram.LID_MAP:
             level = LEVEL_BY_LID[snap.level]
             if level is not self.level:
                 self.tokens = None
                 self.bonus_seen = False
                 self.box_total_noted = False
+                self.max_boxes = 0
             self.level = level
 
     def _detect_checks(self, snap: ram.Snapshot, previous: ram.Snapshot | None, checked: Collection[int],
@@ -257,7 +273,7 @@ class Watcher:
         # too (``level`` is cleared once the map is reached, so it fires once). A game over (0x200) and a quit (0x400)
         # use neither state; bonus rounds don't count.
         if (snap.gamestate in (ram.GAMESTATE_LEVEL_WON, ram.GAMESTATE_EXIT_TO_MAP)
-                and snap.level not in ram.BONUS_LIDS and level is not FINAL_BOSS):
+                and not self.in_bonus and level is not FINAL_BOSS):
             actions.locations.add(location_name_to_id[level.complete_location])
 
         if snap.on_map:

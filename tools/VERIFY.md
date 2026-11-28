@@ -101,6 +101,21 @@ Seed YAML: `box_checks: quarters`, `bonus_round_checks: true`, `life_count_check
 | 8.9 | Reach 5, then 10 lives (in a level and on the map) | `Reach 5 Lives` / `Reach 10 Lives` when the HUD shows it |
 | 8.10 | Die in a level after 8.2 | lives drop by one as usual (the field is the real counter) |
 
+Results (BizHawk 2.9.1, NymaShock, from the S1 save state):
+
+- ✅ 8.1 Crash object 0x8009E3D4 in N. Sanity Beach (player 0x80090150), counters match the HUD. Each level and each
+  bonus round has its own object; CRASH_PTR reads 0 for a moment while a bonus round loads.
+- ✅ 8.2 Extra Life in a level. ✅ 8.3 Wumpa Fruit Bundle in a level, also past 100 (life +1, fruit wraps).
+- ✅ 8.4 Aku Aku Mask waits for the map. ✅ 8.5 25/50/75% boxes (N. Sanity Beach, Jungle Rollers, Rolling Stones).
+- ✅ 8.6 N. Sanity Beach: 49 boxes with the gem, as in the table. The won state (0x500) can be missed with lag, so the
+  note also fires on the 0x300 exit.
+- ✅ 8.7 Jungle Rollers Tawna bonus: level ID 0x24, tokens Tawna 3.
+- ✅ 8.8 Rolling Stones: Tawna bonus 0x33 (tokens Tawna 3, Brio 2), Brio bonus 0x25. Fixed: the second bonus round
+  of a level visit was ignored.
+- ✅ 8.9 Reach 5 / 10 Lives in a level. ✅ 8.10 dying takes a life as usual.
+- Fixed: leaving a bonus round shows 0x300/0x500 with the level's own ID before play resumes, which sent the level's
+  Complete. Wins now count only after play resumes in the level.
+
 **No Lives Trap (trap test seed):** ✅ `/send Crash No Lives Trap` on the map → lives 0 for the next level
 (N. Sanity Beach), back on the map → "No Lives Trap over: 4 lives". A second trap armed again right after.
 ✅ Game over with the second trap armed: died once with 0 lives → Game Over → Continue → 4 lives (vanilla), trap

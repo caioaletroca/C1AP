@@ -32,7 +32,7 @@ ITEM_POOL1 = 0x80061988        # OK: (N. Sanity Beach gem = bit 1)
 ITEM_POOL2 = 0x800619AC        # VERIFY
 MAP_LEVEL_LINKS = 0x800619B0   # OK: the map recomputes (1 << (LEVELS_UNLOCKED + 1)) - 1 on entry
 MAP_KEY_LINKS = 0x800619B8     # VERIFY: the map copies ITEM_POOL2 here on entry
-BOX_COUNT = 0x80061984         # VERIFY: boxes broken in this level << 8 (BoxsC adds 0x100 per box; the gem needs all)
+BOX_COUNT = 0x80061984         # OK: boxes broken in this level << 8 (BoxsC adds 0x100 per box; the gem needs all)
 DEATH_COUNT = 0x80061A3C       # BAD for death link: deaths since the last checkpoint (Aku Aku pity mask)
 GLOBALS_END = DEATH_COUNT + 4
 GLOBALS_SIZE = GLOBALS_END - GLOBALS_START
@@ -46,12 +46,15 @@ LID_BLOCK_SIZE = 8
 # The Crash (player) GOOL object. In a level its own fields hold the counters; WillC copies them from LIFE_COUNT,
 # FRUIT_COUNT and the token counts when it spawns and back when the level ends (kdecomp src/gool/WillC.gool, state_0
 # and state_34). Writing the globals mid-level is overwritten at the end, so mid-level filler goes here.
-CRASH_PTR = 0x80056480         # VERIFY: `crash` (kdecomp docs/names.md), pointer to the active Crash object
+CRASH_PTR = 0x800566B4         # OK (0 for a moment while a bonus round loads): `crash` (wc1 src/gool.c, .sbss), set to `player` when a level starts.
+# BAD: 0x80056480 (kdecomp docs/names.md calls it `crash`) is `in_consts`, a GOOL buffer descriptor: BizHawk round 8
+# read 0x1F800040 there, a scratchpad address.
+PLAYER_PTR = 0x80060DB4        # OK: `player` (wc1), the allocated Crash object; logged as a cross-check
 OBJ_FIELDS = 0x160             # GOOL object register 0x40 (`field-0`) is at object + 0x60 + 0x40 * 4
 OBJ_FIELD_COUNT = 9
-FIELD_FRUIT = 0                # fruit << 8; at 100 the game subtracts 100 and adds a life (WillC loc_04F8)
-FIELD_LIVES = 1                # lives << 8, capped at 99 (WillC: 25344)
-FIELD_CORTEX = 6               # token counts << 8 (loaded from CORTEX/BRIO/TAWNA_COUNT at spawn)
+FIELD_FRUIT = 0                # OK: fruit << 8; at 100 the game subtracts 100 and adds a life (WillC loc_04F8)
+FIELD_LIVES = 1                # OK: lives << 8, capped at 99 (WillC: 25344)
+FIELD_CORTEX = 6               # OK (Tawna and Brio seen): token counts << 8 (loaded from CORTEX/BRIO/TAWNA_COUNT at spawn)
 FIELD_BRIO = 7
 FIELD_TAWNA = 8
 RAM_SIZE = 0x200000
@@ -72,7 +75,7 @@ LID_LEVEL_END = 0x2D
 BONUS_LIDS = frozenset({0x24, 0x25, 0x26, 0x33, 0x34})
 """Bonus rounds return to the level they were entered from"""
 # goolstdlib level codes (base 62): BonusTawna1 'A', BonusBrio 'B', Bonus 'C', BonusTawna2 'P', BonusCortex 'Q'
-LID_BONUS_BRIO = 0x25          # VERIFY
+LID_BONUS_BRIO = 0x25          # OK (Rolling Stones). Tawna: 0x24 (Jungle Rollers), 0x33 (Rolling Stones)
 LID_BONUS_CORTEX = 0x34        # VERIFY
 LID_BONUS_GENERIC = 0x26       # VERIFY: which kind is unknown; the client uses the token counts
 
@@ -152,6 +155,8 @@ class Snapshot:
     next_lid: int
     box_count: int = 0
     crash_ptr: int = 0
+    player_ptr: int = 0
+    """Logged only, to cross-check CRASH_PTR"""
     crash: CrashFields | None = None
     """Read only when ``crash_readable``; None otherwise"""
 
@@ -196,6 +201,7 @@ def read_requests() -> list[tuple[int, int, str]]:
         (offset(GLOBALS_START), GLOBALS_SIZE, DOMAIN),
         (offset(LID_BLOCK), LID_BLOCK_SIZE, DOMAIN),
         (offset(CRASH_PTR), 4, DOMAIN),
+        (offset(PLAYER_PTR), 4, DOMAIN),
     ]
 
 
@@ -207,7 +213,8 @@ def _word(block: bytes, block_start: int, address: int) -> int:
     return struct.unpack_from("<I", block, address - block_start)[0]
 
 
-def parse(globals_block: bytes, lid_block: bytes, crash_ptr_block: bytes = bytes(4)) -> Snapshot:
+def parse(globals_block: bytes, lid_block: bytes, crash_ptr_block: bytes = bytes(4),
+          player_ptr_block: bytes = bytes(4)) -> Snapshot:
     def g(address: int) -> int:
         return _word(globals_block, GLOBALS_START, address)
 
@@ -225,6 +232,7 @@ def parse(globals_block: bytes, lid_block: bytes, crash_ptr_block: bytes = bytes
         next_lid=_word(lid_block, LID_BLOCK, NEXT_LID),
         box_count=g(BOX_COUNT),
         crash_ptr=struct.unpack_from("<I", crash_ptr_block)[0],
+        player_ptr=struct.unpack_from("<I", player_ptr_block)[0],
     )
 
 

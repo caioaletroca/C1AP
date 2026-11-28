@@ -146,7 +146,7 @@ is not known to have moved colored gems. Confirm both columns on PS1 ❓.
 `+0x600/0x700/0x800 + lid` for 25/50/75%). IDs are **fixed forever** once released.
 
 **In-level counters (v0.3).** In a level, lives, fruit and tokens are fields of the Crash GOOL object (pointer
-`crash` at 0x80056480; `field-0` fruit, `field-1` lives, `field-6/7/8` Cortex/Brio/Tawna tokens at object + 0x160 +
+`crash` at 0x800566B4 (wc1; kdecomp names 0x80056480, which is wrong); `field-0` fruit, `field-1` lives, `field-6/7/8` Cortex/Brio/Tawna tokens at object + 0x160 +
 4 * n). WillC copies them from the globals when it spawns and back when the level ends, which is why writing
 `LIFE_COUNT` mid-level was lost. The client trusts the fields only when they look like counters on two polls in a
 row with the same pointer, and guards every write on the pointer and the field. Aku Aku masks are in the DoctC

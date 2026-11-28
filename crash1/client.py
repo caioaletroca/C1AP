@@ -91,6 +91,7 @@ class Crash1Client(BizHawkClient):
         self.goal_sent = False
         self.notify_set = False
         self.crash_ptr_logged = 0
+        self.unreadable_logged = -1
 
     async def validate_rom(self, ctx: "BizHawkClientContext") -> bool:
         try:
@@ -131,12 +132,14 @@ class Crash1Client(BizHawkClient):
             self.notify_set = True
 
         try:
-            globals_block, lid_block, crash_ptr_block = await bizhawk.read(ctx.bizhawk_ctx, ram.read_requests())
-            snap = ram.parse(globals_block, lid_block, crash_ptr_block)
+            blocks = await bizhawk.read(ctx.bizhawk_ctx, ram.read_requests())
+            snap = ram.parse(*blocks)
             if snap.crash_readable:
                 fields_block = (await bizhawk.read(ctx.bizhawk_ctx, [ram.crash_request(snap.crash_ptr)]))[0]
                 snap = ram.with_crash(snap, fields_block)
                 self._log_crash_object(snap)
+            elif snap.gamestate == ram.GAMESTATE_PLAYING and snap.level not in (ram.LID_MAP, ram.LID_LEVEL_END):
+                self._log_unreadable(snap)
 
             received = Counter(ITEM_ID_TO_NAME.get(item.item, "") for item in ctx.items_received)
             checked = ctx.checked_locations | self.sent
@@ -189,13 +192,23 @@ class Crash1Client(BizHawkClient):
             await _store(ctx, key, None if new_state is None else new_state.to_json())
         return restore is not None
 
+    def _log_unreadable(self, snap: ram.Snapshot) -> None:
+        """Once per level: the pointer couldn't be followed (verification of CRASH_PTR)"""
+        if snap.level == self.unreadable_logged:
+            return
+        self.unreadable_logged = snap.level
+        logger.info(f"[C1AP verify] In level 0x{snap.level:02X} but CRASH_PTR (0x{ram.CRASH_PTR:08X}) holds "
+                    f"0x{snap.crash_ptr:08X}, not a RAM pointer (player 0x{snap.player_ptr:08X}): "
+                    f"in-level filler and lives are off")
+
     def _log_crash_object(self, snap: ram.Snapshot) -> None:
         """Once per pointer value: what the Crash object holds, to verify the field offsets in a test round"""
         if snap.crash is None or snap.crash_ptr == self.crash_ptr_logged:
             return
         self.crash_ptr_logged = snap.crash_ptr
         fields = snap.crash
-        logger.info(f"[C1AP verify] Crash object 0x{snap.crash_ptr:08X} in level 0x{snap.level:02X}: "
+        logger.info(f"[C1AP verify] Crash object 0x{snap.crash_ptr:08X} (player 0x{snap.player_ptr:08X}) "
+                    f"in level 0x{snap.level:02X}: "
                     f"lives {fields.lives / ram.UNIT:g}, fruit {fields.fruit / ram.UNIT:g}, tokens "
                     f"T{fields.tawna / ram.UNIT:g} B{fields.brio / ram.UNIT:g} C{fields.cortex / ram.UNIT:g}, "
                     f"plausible {fields.plausible} (globals: lives {snap.lives / ram.UNIT:g}, "

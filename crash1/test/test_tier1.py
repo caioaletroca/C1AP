@@ -71,11 +71,18 @@ class TestBoxMilestones(Tier1WatcherTest):
         self.assertIn(loc("Jungle Rollers - 50% Boxes"), self.checked)
         self.assertNotIn(loc("Jungle Rollers - 75% Boxes"), self.checked)
 
+    def test_box_total_note_when_won_state_is_missed(self) -> None:
+        # BizHawk round 8: lag hid 0x500; the 0x300 exit shows with the map's level ID
+        self.step(self.in_level("Boulders", box_count=16 * U))
+        self.step(replace(MAP, gamestate=ram.GAMESTATE_EXIT_TO_MAP))
+        self.assertEqual(len(self.actions.notes), 1)
+        self.assertIn("up to 16 boxes", self.actions.notes[0])
+
     def test_box_total_note_on_win(self) -> None:
         self.step(self.in_level("Boulders", box_count=16 * U))
         self.step(self.in_level("Boulders", box_count=16 * U, gamestate=ram.GAMESTATE_LEVEL_WON))
         self.assertEqual(len(self.actions.notes), 1)
-        self.assertIn("BOX_COUNT 16", self.actions.notes[0])
+        self.assertIn("up to 16 boxes", self.actions.notes[0])
         self.step(self.in_level("Boulders", box_count=16 * U, gamestate=ram.GAMESTATE_LEVEL_WON))
         self.assertFalse(self.actions.notes)
 
@@ -89,6 +96,30 @@ class TestBonusRounds(Tier1WatcherTest):
         self.step(self.in_level(name, fields))
         self.step(self.in_level(name, fields))
         self.step(replace(self.in_level(name, crash(tawna=0)), level=bonus_lid))
+
+    def test_two_bonus_rounds_in_one_level(self) -> None:
+        # BizHawk round 8: Rolling Stones' Brio bonus (0x25) was missed after its Tawna bonus (0x33)
+        self.enter_bonus("Rolling Stones", 0x33, crash(tawna=3, brio=2))
+        self.step(replace(self.in_level("Rolling Stones"), level=0x33))
+        self.step(self.in_level("Rolling Stones", crash(brio=2)))
+        self.step(self.in_level("Rolling Stones", crash(brio=3)))
+        self.step(replace(self.in_level("Rolling Stones"), level=0x25))
+        self.assertTrue({loc("Rolling Stones - Tawna Bonus"), loc("Rolling Stones - Brio Bonus")} <= self.checked)
+
+    def test_leaving_the_bonus_is_not_a_win(self) -> None:
+        # BizHawk round 8: Jungle Rollers - Complete fired when the Tawna bonus ended
+        self.watcher = make_watcher(box_checks=2)
+        self.enter_bonus("Jungle Rollers", 0x24, crash(tawna=3))
+        for state in (ram.GAMESTATE_EXIT_TO_MAP, ram.GAMESTATE_LEVEL_WON):
+            self.step(replace(self.in_level("Jungle Rollers"), level=0x24, gamestate=state))
+            self.step(self.in_level("Jungle Rollers", gamestate=state))
+            self.assertNotIn(loc("Jungle Rollers - Complete"), self.checked)
+            self.assertFalse(any("won with" in note for note in self.actions.notes))
+        # back in the level, then won for real
+        self.step(self.in_level("Jungle Rollers"))
+        self.step(self.in_level("Jungle Rollers", gamestate=ram.GAMESTATE_EXIT_TO_MAP))
+        self.assertIn(loc("Jungle Rollers - Complete"), self.checked)
+        self.assertTrue(any("won with" in note for note in self.actions.notes))
 
     def test_tawna_from_tokens(self) -> None:
         self.enter_bonus("Jungle Rollers", 0x26, crash(tawna=3))
