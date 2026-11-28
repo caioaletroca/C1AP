@@ -126,6 +126,9 @@ Results (BizHawk 2.9.1, NymaShock, from the S1 save state):
 - ✅ 8.14 Level shuffle (seed `round8c`, from S1): Jungle Rollers' node loaded Temple Ruins (0x1C) and its box
   check was `Temple Ruins - 25% Boxes`; Hog Wild's node loaded Boulders (0x0E); Upstream's node loaded Jungle Rollers
   (0x0C): its boxes, Tawna Bonus, Tawna Bonus Cleared and Complete all counted for Jungle Rollers.
+- ✅ 8.15 Sunset Vista Cortex bonus (seed `round8d`, start_inventory 6 Map Progress, from S1): level ID 0x34
+  (`counted as Cortex`); dying → "left without clearing it"; the key check `Sunset Vista - Key` was sent on picking up
+  the key inside the bonus; finishing → "cleared (Cortex)" with no extra check and no false Complete.
 - ✅ 8.9 Reach 5 / 10 Lives in a level. ✅ 8.10 dying takes a life as usual.
 - Fixed: leaving a bonus round shows 0x300/0x500 with the level's own ID before play resumes, which sent the level's
   Complete. Wins now count only after play resumes in the level.

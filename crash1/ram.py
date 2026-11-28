@@ -76,7 +76,7 @@ BONUS_LIDS = frozenset({0x24, 0x25, 0x26, 0x33, 0x34})
 """Bonus rounds return to the level they were entered from"""
 # goolstdlib level codes (base 62): BonusTawna1 'A', BonusBrio 'B', Bonus 'C', BonusTawna2 'P', BonusCortex 'Q'
 LID_BONUS_BRIO = 0x25          # OK (Rolling Stones). Tawna: 0x24 (Jungle Rollers), 0x33 (Rolling Stones)
-LID_BONUS_CORTEX = 0x34        # VERIFY
+LID_BONUS_CORTEX = 0x34        # OK (Sunset Vista)
 LID_BONUS_GENERIC = 0x26       # VERIFY: which kind is unknown; the client uses the token counts
 
 UNIT = 0x100                   # OK: lives, masks and fruit are stored << 8
