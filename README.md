@@ -86,8 +86,9 @@ The full guides are the [setup guide](crash1/docs/setup_en.md) and the
   - A bonus round only counts if the client saw you in its level first. Enter the level, then load the state.
   - The box total in the `[C1AP verify]` log is wrong after a save state, so leave it out of bug reports.
   - Save states on the map, or at the start of a level, are fine.
-- Box totals come from a community table and are being verified: the client logs the real count each time a level
-  is won (`[C1AP verify]` lines). Please include those lines in bug reports.
+- Box totals come from the game's own level-end table. The Lost City is the one level where it disagrees with the
+  wikis (26, not 31); the client logs the real count each time a level is won (`[C1AP verify]` lines), so please
+  include those lines in bug reports.
 
 ## Development
 
@@ -132,7 +133,10 @@ they were fixed. Nothing in the client was marked as working before it was seen 
 - RAM and level data: the Crash 1 decompilations ([esplonky/c1](https://github.com/esplonky/c1),
   [khasinski/crash-bandicoot-decomp](https://github.com/khasinski/crash-bandicoot-decomp)) and GOOL dumps
   ([ManDude/goocdump](https://github.com/ManDude/goocdump)).
-- Box totals and bonus rounds per level: the [Crash Bandicoot Wiki](https://crashbandicoot.fandom.com/wiki/Crash_Bandicoot_(game)).
+- Box totals: the game's level-end table (goocdump `GamOC`), checked against the
+  [Crash Bandicoot Wiki](https://crashbandicoot.fandom.com/wiki/Crash_Bandicoot_(game)) and the
+  [RetroAchievements guide](https://github.com/RetroAchievements/guides/wiki/Crash-Bandicoot). Bonus rounds per level:
+  the Crash Bandicoot Wiki.
 - Built on Archipelago's BizHawk client framework.
 
 ## License
