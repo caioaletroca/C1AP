@@ -8,8 +8,8 @@ Sources:
 - Colored gems: N. Sane Trilogy guides (The Escapist, Nintendo Life). Bits: goolstdlib NTSC-U aliases.
 - Box totals: the game's own table, goocdump ``Crash 1/NTSC-J/GamOC.gooc`` ``Level_End_Willy_Spawn`` (the
   ``#ifnreg "ntsc-j"`` branch, NTSC-U and PAL). The level-end screen gives the gem when BOXCOUNT equals it. It
-  matches the fandom wiki's level table and the RetroAchievements guide except The Lost City (game 26, wikis 31) and
-  Boulders (RetroAchievements 14).
+  matches the fandom wiki's level table and the RetroAchievements guide except The Lost City (game 26, wikis 31;
+  26 confirmed in BizHawk with the gem).
 - Bonus rounds: the level table on crashbandicoot.fandom.com ("Crash Bandicoot (game)"), NTSC-U values.
 
 Anything marked VERIFY still needs to be confirmed in an emulator; see docs/DESIGN.md and tools/VERIFY.md at the repository root.
@@ -125,8 +125,7 @@ LEVELS: tuple[Level, ...] = (
     # Island 2 (Wumpa Island)
     Level("Up the Creek", 0x18, 10, Kind.LEVEL, boxes=15, bonuses=(Bonus.TAWNA,)),
     Level("Ripper Roo", 0x17, 11, Kind.BOSS, gem=Gem.NONE),
-    # VERIFY: the game's table says 26, both wikis say 31; the client logs the real count when the gem is won.
-    # Not a region difference: the NTSC-J table also says 26, and LEVEL_TheLostCity is L'w' = 0x20 in both.
+    # 26, as in the game's table (both wikis say 31): BizHawk round 8 won the gem with BOX_COUNT 26.
     Level("The Lost City", 0x20, 12, Kind.LEVEL, gem=Gem.GREEN, boxes=26, bonuses=(Bonus.TAWNA, Bonus.BRIO)),
     Level("Temple Ruins", 0x1C, 13, Kind.LEVEL, boxes=67),
     Level("Road to Nowhere", 0x14, 14, Kind.LEVEL, gem_requires=(Gem.RED,), boxes=33, bonuses=(Bonus.TAWNA,)),

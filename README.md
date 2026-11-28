@@ -86,9 +86,9 @@ The full guides are the [setup guide](crash1/docs/setup_en.md) and the
   - A bonus round only counts if the client saw you in its level first. Enter the level, then load the state.
   - The box total in the `[C1AP verify]` log is wrong after a save state, so leave it out of bug reports.
   - Save states on the map, or at the start of a level, are fine.
-- Box totals come from the game's own level-end table. The Lost City is the one level where it disagrees with the
-  wikis (26, not 31); the client logs the real count each time a level is won (`[C1AP verify]` lines), so please
-  include those lines in bug reports.
+- Box totals come from the game's own level-end table. The Lost City counts 26 boxes, although the wikis list 31.
+  The client logs the count each time a level is won (`[C1AP verify]` lines); please include those lines in bug
+  reports.
 
 ## Development
 

@@ -129,6 +129,9 @@ Results (BizHawk 2.9.1, NymaShock, from the S1 save state):
 - ✅ 8.15 Sunset Vista Cortex bonus (seed `round8d`, start_inventory 6 Map Progress, from S1): level ID 0x34
   (`counted as Cortex`); dying → "left without clearing it"; the key check `Sunset Vista - Key` was sent on picking up
   the key inside the bonus; finishing → "cleared (Cortex)" with no extra check and no false Complete.
+- ✅ 8.16 The Lost City with the gem (seed `round8d`): `won with up to 26 boxes`, then `The Lost City - Gem`. The game's
+  table (26) is right; the wikis' 31 is not the counter. Also: Brio bonus then Tawna bonus in one visit, both
+  counted (Brio cleared, Tawna left without clearing).
 - ✅ 8.9 Reach 5 / 10 Lives in a level. ✅ 8.10 dying takes a life as usual.
 - Fixed: leaving a bonus round shows 0x300/0x500 with the level's own ID before play resumes, which sent the level's
   Complete. Wins now count only after play resumes in the level.
