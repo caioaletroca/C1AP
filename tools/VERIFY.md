@@ -119,6 +119,10 @@ Results (BizHawk 2.9.1, NymaShock, from the S1 save state):
 - ✅ 8.11 Bonus round cleared (new seed `bonus_round_checks: reach_and_clear`, S2 = inside Rolling Stones' Brio
   bonus): dying → "left without clearing it", no check; finishing → `Rolling Stones - Brio Bonus Cleared`, and no
   Complete. The 0x300 was first seen with the level's ID (0x15), after the load back.
+- ✅ 8.12 Jungle Rollers Tawna bonus, same seed from S1: dying → "left without clearing it"; finishing (after the
+  save card) → `Tawna Bonus Cleared`, 0x300 first seen with the level's ID (0x0C); Complete only at the real end.
+- ✅ 8.13 Client restarted in a level after an in-level Extra Life and Wumpa bundle: nothing applied twice (per-name
+  applied counts). An Aku Aku Mask received in the level then waited for the map and gave the second mask.
 - ✅ 8.9 Reach 5 / 10 Lives in a level. ✅ 8.10 dying takes a life as usual.
 - Fixed: leaving a bonus round shows 0x300/0x500 with the level's own ID before play resumes, which sent the level's
   Complete. Wins now count only after play resumes in the level.

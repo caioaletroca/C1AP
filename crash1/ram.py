@@ -80,7 +80,7 @@ LID_BONUS_CORTEX = 0x34        # VERIFY
 LID_BONUS_GENERIC = 0x26       # VERIFY: which kind is unknown; the client uses the token counts
 
 UNIT = 0x100                   # OK: lives, masks and fruit are stored << 8
-MAX_HEALTH = 2 * UNIT          # VERIFY: two masks; a third gives temporary invincibility
+MAX_HEALTH = 2 * UNIT          # OK (second mask from the multiworld seen): two masks; a third gives temporary invincibility
 MAX_FRUIT = 99 * UNIT
 MAX_LIVES = 99 * UNIT
 
