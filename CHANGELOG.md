@@ -1,5 +1,19 @@
 # Changelog
 
+# [0.3.0](https://github.com/caioaletroca/C1AP/compare/v0.2.0...v0.3.0) (2026-11-28)
+
+
+### Bug Fixes
+
+* Crash object pointer and bonus round exits (round 8) ([973d77a](https://github.com/caioaletroca/C1AP/commit/973d77af467374c94ecf91c9655fbb0d312b0a1b))
+* The Lost City has 26 boxes (the game's own table) ([3c3ae7a](https://github.com/caioaletroca/C1AP/commit/3c3ae7ab51c969a4e6b7a48ff3bc3545a1c83185))
+
+
+### Features
+
+* bonus round cleared checks ([1b4b729](https://github.com/caioaletroca/C1AP/commit/1b4b729f9b92c7eb0e2980ab7a0ebccc354d262d))
+* in-level filler, bonus round, box and life count checks ([e688dee](https://github.com/caioaletroca/C1AP/commit/e688dee17c0addc99671e9412def9fbdd3524db8))
+
 # [0.2.0](https://github.com/caioaletroca/C1AP/compare/v0.1.0...v0.2.0) (2026-11-22)
 
 
