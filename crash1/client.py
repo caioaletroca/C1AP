@@ -109,6 +109,8 @@ class Crash1Client(BizHawkClient):
         self.hook_calls: dict[int, tuple[int, int]] | None = None
         """Call sites the traps hook, {address: (original jal, hooked jal)}, found once"""
         self.hook_calls_missing_logged = False
+        self.timed: TimedTraps | None = None
+        """The trap queue and clocks, kept here and saved to data storage now and then (only read from it once)"""
         self.last_tick: float | None = None
         self.last_trap_save = 0.0
 
@@ -130,6 +132,7 @@ class Crash1Client(BizHawkClient):
         self.sent.clear()
         self.goal_sent = False
         self.notify_set = False
+        self.timed = None
         return True
 
     def on_package(self, ctx: "BizHawkClientContext", cmd: str, args: dict) -> None:
@@ -138,6 +141,7 @@ class Crash1Client(BizHawkClient):
             self.sent.clear()
             self.goal_sent = False
             self.notify_set = False
+            self.timed = None
 
     async def game_watcher(self, ctx: "BizHawkClientContext") -> None:
         if ctx.server is None or ctx.server.socket.closed or ctx.slot_data is None:
@@ -209,8 +213,11 @@ class Crash1Client(BizHawkClient):
         elapsed = 0.0 if self.last_tick is None else min(now - self.last_tick, MAX_TICK)
         self.last_tick = now
 
-        stored = TimedTraps.from_json(ctx.stored_data[key])
+        if self.timed is None:
+            self.timed = TimedTraps.from_json(ctx.stored_data[key])
+        stored = self.timed
         state, ended, started = timed.tick(stored, snap, elapsed)
+        self.timed = state  # the clock moved even if the RAM work below fails
         for name in ended:
             if name == timed.NO_LIVES_TRAP and snap.gamestate == ram.GAMESTATE_GAME_OVER:
                 logger.info("No Lives Trap over: game over, the banked lives are lost.")
@@ -237,9 +244,10 @@ class Crash1Client(BizHawkClient):
             current = {address: struct.unpack_from("<I", block)[0] for address, block in zip(calls, blocks[1:])}
             await self._sync_hooks(ctx, out.flags, blocks[0], current)
 
+        self.timed = state
         changed = bool(ended or started) or state.banked != stored.banked
         if changed or (state.busy and now - self.last_trap_save >= TRAP_SAVE_INTERVAL):
-            if state.to_json() != stored.to_json():
+            if state.to_json() != ctx.stored_data.get(key):
                 await _store(ctx, key, state.to_json())
             self.last_trap_save = now
         return lives_changed
@@ -334,7 +342,9 @@ class Crash1Client(BizHawkClient):
         for name in filler.pending(fillers, applied):
             if name in TIMED_TRAPS:
                 seconds = int(ctx.slot_data.get("trap_duration", 30))
-                state = TimedTraps.from_json(ctx.stored_data[_timed_key(ctx)]).add(name, seconds)
+                if self.timed is None:
+                    self.timed = TimedTraps.from_json(ctx.stored_data[_timed_key(ctx)])
+                state = self.timed = self.timed.add(name, seconds)
                 await _store(ctx, _timed_key(ctx), state.to_json())
                 ahead = len(state.queue) - 1 + (state.current is not None)
                 logger.info(f"{name} received: it starts in a level" + (f", after {ahead} more." if ahead else "."))
