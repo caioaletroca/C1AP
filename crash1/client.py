@@ -333,7 +333,7 @@ class Crash1Client(BizHawkClient):
 
         for name in filler.pending(fillers, applied):
             if name in TIMED_TRAPS:
-                seconds = int(ctx.slot_data.get("trap_duration", 20))
+                seconds = int(ctx.slot_data.get("trap_duration", 30))
                 state = TimedTraps.from_json(ctx.stored_data[_timed_key(ctx)]).add(name, seconds)
                 await _store(ctx, _timed_key(ctx), state.to_json())
                 ahead = len(state.queue) - 1 + (state.current is not None)

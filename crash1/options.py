@@ -107,7 +107,7 @@ class TrapChance(Range):
     """Chance (in percent) for each filler item to be a trap instead. Which trap is picked by the trap weights.
 
     Traps last Trap Duration seconds of play in a level (the map and loading screens don't count), then the game goes
-    back to normal. The same trap received again adds its duration.
+    back to normal. Traps wait in a queue and run one at a time, only while a level is played. 0 = no traps.
     """
 
     display_name = "Trap Chance"
@@ -122,7 +122,7 @@ class TrapDuration(Range):
     display_name = "Trap Duration"
     range_start = 5
     range_end = 120
-    default = 20
+    default = 30
 
 
 class TrapWeight(Range):

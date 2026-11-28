@@ -54,7 +54,7 @@ Defeat Dr. N. Cortex (`cortex`), or defeat him while holding all 26 gems (`all_g
 | `life_count_checks` | life counts from 5 to 99, for example `["10", "20", "30"]` | `["10", "20", "30"]` |
 | `starting_nodes` | 1-10 map nodes open at the start | 3 |
 | `trap_chance` | 0-100: % of filler replaced by a trap | 0 |
-| `trap_duration` | 5-120 seconds of play in a level per trap | 20 |
+| `trap_duration` | 5-120 seconds of play in a level, the same for every trap | 30 |
 | `no_lives_trap_weight`, `upside_down_trap_weight`, `reverse_controls_trap_weight`, `button_swap_trap_weight` | 0-10: how often each trap is picked (all 0 = no traps) | 1 |
 | `death_link` | `true` / `false` | `false` |
 
