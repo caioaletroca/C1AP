@@ -163,12 +163,16 @@ Part A, no client: `tools/c1ap_trap_test.lua` in the Lua Console (keys H J L M U
 | 9.9 | Pause during any trap | write down `pause` value paused and unpaused (for pause detection) | |
 | 9.10 | Leave the script running 5+ minutes untouched | no `cave survey (periodic)` line (cave stays zero) | |
 
-Part B, with the client (seed with `trap_chance` > 0): `!getitem <trap>` in the client for each trap.
+Part B, with the client (seed `round9`: `trap_chance` 50, 30 s): `!getitem <trap>` in the client for each trap.
 
 | # | Test | Expect | Result |
 |---|---|---|---|
-| 9.11 | `Upside Down Trap` on the map, then enter a level | `received: it starts in a level`; normal map; flipped about 3 s into the level; normal again after 30 s of play | |
-| 9.12 | `Reverse Controls Trap` and `Button Swap Trap` together in a level | Reverse first for 30 s, then 5 s normal, then Button Swap for 30 s; never both at once | |
-| 9.13 | `No Lives Trap` in a level | lives 0; back when it ends: `No Lives Trap over: N lives back.` | |
-| 9.14 | Leave a level while traps wait, then come back | nothing starts or counts on the map; the queue goes on in the next level | |
-| 9.15 | Restart the client mid-trap, with another waiting | the trap goes on with the time left, then the waiting one; no lives lost or doubled | |
+| 9.11 | `Upside Down Trap` on the map, then enter a level | `received: it starts in a level`; normal map; flipped about 3 s into the level; normal again after 30 s of play | ✅ |
+| 9.12 | `Reverse Controls Trap` and `Button Swap Trap` together in a level | Reverse first for 30 s, then 5 s normal, then Button Swap for 30 s; never both at once | ✅ |
+| 9.13 | `No Lives Trap` in a level | lives 0; back when it ends: `No Lives Trap over: N lives back.` | ✅ |
+| 9.14 | Leave a level while traps wait, then come back | nothing starts or counts on the map; the queue goes on in the next level | ✅ |
+| 9.15 | Restart the client mid-trap, with another waiting | the trap goes on with the time left, then the waiting one; no lives lost or doubled | ✅ |
+
+Part B notes: the first client ran trap clocks at about a third of real time (it re-read the state from data storage
+every poll but saved it every 3 s); fixed by keeping the state in the client. After the fix: two Upside Down Traps
+ran back to back with a break, `No Lives Trap over: 5 lives back.`, and a client restart mid-trap carried on.
