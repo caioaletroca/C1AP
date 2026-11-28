@@ -1,5 +1,20 @@
 # Changelog
 
+# [0.4.0](https://github.com/caioaletroca/C1AP/compare/v0.3.0...v0.4.0) (2026-11-28)
+
+
+### Bug Fixes
+
+* trap clock ran at about a third of real time ([415a0a9](https://github.com/caioaletroca/C1AP/commit/415a0a901eb57f96a0e3a346ca92b2333e4fe69f))
+* Upside Down Trap hooks the camera's sin/cos instead of writing the roll ([a5a007e](https://github.com/caioaletroca/C1AP/commit/a5a007e51c0205516f973a5f80b4d25b53ef8ce2))
+
+
+### Features
+
+* queue traps and run them one at a time, only in levels ([442cb19](https://github.com/caioaletroca/C1AP/commit/442cb19dce460055cf8bacc60f50f5113b155e58))
+* timed traps (No Lives, Upside Down, Reverse Controls, Button Swap) ([a653b19](https://github.com/caioaletroca/C1AP/commit/a653b19d74f00d32e651eedf370517e22857a0af))
+* traps last 30 seconds by default ([153b1ff](https://github.com/caioaletroca/C1AP/commit/153b1fff625913ccec9ba511b8011ecb24594150))
+
 # [0.3.0](https://github.com/caioaletroca/C1AP/compare/v0.2.0...v0.3.0) (2026-11-28)
 
 
