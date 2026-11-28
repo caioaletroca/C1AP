@@ -154,7 +154,7 @@ Part A, no client: `tools/c1ap_trap_test.lua` in the Lua Console (keys H J L M U
 |---|---|---|---|
 | 9.1 | Load the script | console: `cave survey (start): all zero`; `calls:` line with PadRead (1 found), sin and cos addresses, none MISSING | ✅ (first version, PadRead only) |
 | 9.2 | H in a level, walk around, die, enter a bonus | camera upside down the whole time, no flicker; `hooked sin` / `hooked cos` | ❌ first version (wrote `g_cam_rot_z`): flipped standing still, flickered back while moving. Fixed: hook sin/cos instead. ✅ retest: stays upside down while moving. |
-| 9.3 | H on the map | map upside down too (the client only flips in levels) | |
+| 9.3 | H on the map | map upside down too (the client only flips in levels) | ✅ flips (the client itself only hooks in levels) |
 | 9.4 | L in a level | left walks right and right walks left; text shows `hooked 3/3`, `cave ok` | ✅ |
 | 9.5 | M in a level | X spins, Square and Circle jump; L+M together both apply | ✅ |
 | 9.6 | U | everything normal; `restored pad/sin/cos`; no crash or freeze | ✅ |
