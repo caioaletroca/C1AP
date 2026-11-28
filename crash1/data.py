@@ -125,7 +125,8 @@ LEVELS: tuple[Level, ...] = (
     # Island 2 (Wumpa Island)
     Level("Up the Creek", 0x18, 10, Kind.LEVEL, boxes=15, bonuses=(Bonus.TAWNA,)),
     Level("Ripper Roo", 0x17, 11, Kind.BOSS, gem=Gem.NONE),
-    # VERIFY: the game's table says 26, both wikis say 31; the client logs the real count when the gem is won
+    # VERIFY: the game's table says 26, both wikis say 31; the client logs the real count when the gem is won.
+    # Not a region difference: the NTSC-J table also says 26, and LEVEL_TheLostCity is L'w' = 0x20 in both.
     Level("The Lost City", 0x20, 12, Kind.LEVEL, gem=Gem.GREEN, boxes=26, bonuses=(Bonus.TAWNA, Bonus.BRIO)),
     Level("Temple Ruins", 0x1C, 13, Kind.LEVEL, boxes=67),
     Level("Road to Nowhere", 0x14, 14, Kind.LEVEL, gem_requires=(Gem.RED,), boxes=33, bonuses=(Bonus.TAWNA,)),
