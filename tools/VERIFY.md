@@ -112,6 +112,9 @@ Results (BizHawk 2.9.1, NymaShock, from the S1 save state):
 - ✅ 8.7 Jungle Rollers Tawna bonus: level ID 0x24, tokens Tawna 3.
 - ✅ 8.8 Rolling Stones: Tawna bonus 0x33 (tokens Tawna 3, Brio 2), Brio bonus 0x25. Fixed: the second bonus round
   of a level visit was ignored.
+- ✅ 8.11 Bonus round cleared (new seed `bonus_round_checks: reach_and_clear`, S2 = inside Rolling Stones' Brio
+  bonus): dying → "left without clearing it", no check; finishing → `Rolling Stones - Brio Bonus Cleared`, and no
+  Complete. The 0x300 was first seen with the level's ID (0x15), after the load back.
 - ✅ 8.9 Reach 5 / 10 Lives in a level. ✅ 8.10 dying takes a life as usual.
 - Fixed: leaving a bonus round shows 0x300/0x500 with the level's own ID before play resumes, which sent the level's
   Complete. Wins now count only after play resumes in the level.

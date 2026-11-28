@@ -56,12 +56,32 @@ class BoxChecks(Choice):
     default = option_off
 
 
-class BonusRoundChecks(DefaultOnToggle):
-    """Make reaching each Tawna and Brio bonus round a check (19 checks): collect the three tokens of a kind in a
-    level. The two Cortex bonus rounds are already checks, since they give the keys.
+class BonusRoundChecks(Choice):
+    """Tawna and Brio bonus rounds as checks (19 checks for each part):
+
+    - reach: entering the bonus round, by collecting the three tokens of a kind in a level.
+    - clear: finishing the bonus round. Falling or dying in it does not count; try again on the next visit.
+    - reach_and_clear: both.
+
+    The two Cortex bonus rounds are already checks, since they give the keys.
     """
 
     display_name = "Bonus Round Checks"
+    option_off = 0
+    option_reach = 1
+    option_clear = 2
+    option_reach_and_clear = 3
+    alias_false = 0
+    alias_true = 3
+    default = 3
+
+    @property
+    def reach(self) -> bool:
+        return self.value in (self.option_reach, self.option_reach_and_clear)
+
+    @property
+    def clear(self) -> bool:
+        return self.value in (self.option_clear, self.option_reach_and_clear)
 
 
 class LifeCountChecks(OptionSet):
@@ -120,7 +140,7 @@ option_presets: dict[str, dict[str, object]] = {
         "goal": Goal.option_cortex,
         "gem_checks": False,
         "box_checks": BoxChecks.option_off,
-        "bonus_round_checks": False,
+        "bonus_round_checks": BonusRoundChecks.option_off,
         "life_count_checks": [],
         "starting_nodes": 5,
     },
@@ -128,7 +148,7 @@ option_presets: dict[str, dict[str, object]] = {
         "goal": Goal.option_all_gems,
         "gem_checks": True,
         "box_checks": BoxChecks.option_quarters,
-        "bonus_round_checks": True,
+        "bonus_round_checks": BonusRoundChecks.option_reach_and_clear,
         "life_count_checks": ["10", "20", "30", "40", "50"],
         "starting_nodes": 3,
     },

@@ -23,7 +23,8 @@ Defeat Dr. N. Cortex (`cortex`), or defeat him while holding all 26 gems (`all_g
 - Each level's gem (20 clear, 6 colored), when *Gem Checks* is on.
 - Each of the two keys (the Cortex bonus rounds in Jaws of Darkness and Sunset Vista).
 - With *Bonus Round Checks* (on by default): reaching each Tawna and Brio bonus round, by collecting the three tokens
-  of that kind in a level (19 checks).
+  of that kind in a level, and clearing it (19 checks each; `reach` or `clear` keeps only one of them). Falling or
+  dying in a bonus round doesn't clear it; collect the tokens again on another visit.
 - With *Box Checks*: breaking 25%, 50% and 75% (`quarters`) or 50% (`half`) of each level's boxes. Boxes count only in
   the level you break them in, and dying takes back the ones broken since the last checkpoint, as in the game. The 75%
   milestone of a level with a gem path may need that path's colored gem.

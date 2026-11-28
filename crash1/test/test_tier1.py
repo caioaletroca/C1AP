@@ -90,7 +90,40 @@ class TestBoxMilestones(Tier1WatcherTest):
 class TestBonusRounds(Tier1WatcherTest):
     def setUp(self) -> None:
         super().setUp()
-        self.watcher = make_watcher(bonus_round_checks=True)
+        self.watcher = make_watcher(bonus_round_checks=3)
+
+    def test_cleared(self) -> None:
+        # Crash warps out with 0x300, which lasts through the load back into the level
+        self.enter_bonus("Rolling Stones", 0x25, crash(brio=3))
+        self.step(replace(self.in_level("Rolling Stones"), level=0x25, gamestate=ram.GAMESTATE_EXIT_TO_MAP))
+        self.assertIn(loc("Rolling Stones - Brio Bonus Cleared"), self.actions.locations)
+        self.assertIn("cleared", self.actions.notes[0])
+        self.step(self.in_level("Rolling Stones", gamestate=ram.GAMESTATE_EXIT_TO_MAP))
+        self.step(self.in_level("Rolling Stones"))
+        self.assertNotIn(loc("Rolling Stones - Complete"), self.checked)
+        self.assertFalse(self.actions.notes)
+
+    def test_died_in_the_bonus(self) -> None:
+        # Dying in a bonus zone keeps 0x100 and loads the level's checkpoint
+        self.enter_bonus("Rolling Stones", 0x25, crash(brio=3))
+        self.step(replace(self.in_level("Rolling Stones"), level=0x25))
+        self.step(self.in_level("Rolling Stones"))
+        self.assertIn(loc("Rolling Stones - Brio Bonus"), self.checked)
+        self.assertNotIn(loc("Rolling Stones - Brio Bonus Cleared"), self.checked)
+        self.assertIn("left without clearing", self.actions.notes[0])
+
+    def test_reach_only(self) -> None:
+        self.watcher = make_watcher(bonus_round_checks=1)
+        self.enter_bonus("Rolling Stones", 0x25, crash(brio=3))
+        self.step(replace(self.in_level("Rolling Stones"), level=0x25, gamestate=ram.GAMESTATE_EXIT_TO_MAP))
+        self.assertEqual(self.checked, {loc("Rolling Stones - Brio Bonus")})
+
+    def test_clear_only(self) -> None:
+        self.watcher = make_watcher(bonus_round_checks=2)
+        self.enter_bonus("Rolling Stones", 0x25, crash(brio=3))
+        self.assertFalse(self.checked)
+        self.step(replace(self.in_level("Rolling Stones"), level=0x25, gamestate=ram.GAMESTATE_EXIT_TO_MAP))
+        self.assertEqual(self.checked, {loc("Rolling Stones - Brio Bonus Cleared")})
 
     def enter_bonus(self, name: str, bonus_lid: int, fields: ram.CrashFields) -> None:
         self.step(self.in_level(name, fields))

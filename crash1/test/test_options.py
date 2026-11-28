@@ -46,5 +46,5 @@ class TestPoolSize(Crash1TestBase):
         locations = [loc for loc in self.multiworld.get_locations(self.player) if loc.address is not None]
         items = [item for item in self.multiworld.itempool if item.player == self.player]
         self.assertEqual(len(locations), len(items))
-        self.assertEqual(len(locations), 60 + 19 + 3)  # + bonus rounds + life counts 10/20/30
+        self.assertEqual(len(locations), 60 + 19 * 2 + 3)  # + bonus rounds reached and cleared + life counts 10/20/30
         self.assertEqual(len(self.get_items_by_name("Map Progress")), 31 - 3)

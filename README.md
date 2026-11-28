@@ -27,7 +27,7 @@ The locations are:
 
 - Finishing each level and defeating each boss.
 - Each level's gem (optional) and the two keys.
-- Reaching each Tawna and Brio bonus round (optional, on by default): 19 checks.
+- Reaching and clearing each Tawna and Brio bonus round (optional, on by default): 19 checks each.
 - Breaking 25%, 50% and 75% of each level's boxes (optional): up to 78 checks.
 - Reaching chosen life counts, such as 10, 20 and 30 lives (optional).
 
@@ -43,7 +43,7 @@ Defeat Dr. N. Cortex (`cortex`), or defeat him while holding all 26 gems (`all_g
 | `level_shuffle` | `true` / `false` | `true` |
 | `gem_checks` | `true` / `false`: gems are locations | `true` |
 | `box_checks` | `off`, `half` (50%), `quarters` (25/50/75%) of each level's boxes | `off` |
-| `bonus_round_checks` | `true` / `false`: reaching each Tawna and Brio bonus round | `true` |
+| `bonus_round_checks` | `off`, `reach`, `clear` or `reach_and_clear` each Tawna and Brio bonus round | `reach_and_clear` |
 | `life_count_checks` | life counts from 5 to 99, for example `["10", "20", "30"]` | `["10", "20", "30"]` |
 | `starting_nodes` | 1-10 map nodes open at the start | 3 |
 | `trap_chance` | 0-100: % of filler replaced by a No Lives Trap | 0 |

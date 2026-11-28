@@ -99,6 +99,9 @@ class Level:
     def bonus_location(self, bonus: Bonus) -> str:
         return f"{self.name} - {bonus.value} Bonus"
 
+    def bonus_clear_location(self, bonus: Bonus) -> str:
+        return f"{self.name} - {bonus.value} Bonus Cleared"
+
     @property
     def check_bonuses(self) -> tuple[Bonus, ...]:
         """Bonus rounds that are checks: the Cortex ones already award the keys"""

@@ -129,9 +129,11 @@ class Crash1World(World):
             if key.source == level.name:
                 self.add_location(region, key.location)
 
-        if self.options.bonus_round_checks:
-            for bonus in level.check_bonuses:
+        for bonus in level.check_bonuses:
+            if self.options.bonus_round_checks.reach:
                 self.add_location(region, level.bonus_location(bonus))
+            if self.options.bonus_round_checks.clear:
+                self.add_location(region, level.bonus_clear_location(bonus))
 
         for percent in box_percents(level, self.options.box_checks.value, bool(self.options.gem_checks)):
             location = self.add_location(region, level.box_location(percent))
@@ -215,6 +217,7 @@ class Crash1World(World):
             names = (
                 level.complete_location, level.gem_location, *(k.location for k in KEYS if k.source == level.name),
                 *(level.bonus_location(bonus) for bonus in level.check_bonuses),
+                *(level.bonus_clear_location(bonus) for bonus in level.check_bonuses),
                 *(level.box_location(percent) for percent in BOX_MILESTONES),
             )
             for name in names:

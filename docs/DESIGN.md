@@ -136,7 +136,8 @@ is not known to have moved colored gems. Confirm both columns on PS1 ❓.
 | **Level complete: `<level>`** | **32** = 30 nodes (25 levels + 5 bosses, not Cortex) + 2 secrets | `LEVELCOUNT`/progress rising, or a level → map transition after a win ❓ | Bosses included ✅ |
 | **Gem: `<level>`** | 26 (clear + colored) | a new bit in `ITEMPOOL1`/`ITEMPOOL2` | **Option** `gem_checks` on/off ✅ |
 | **Key: `<level>` Cortex Bonus** | 2 | `ITEMPOOL2` bits 10 and 20 | Always on ✅ |
-| **Bonus round: `<level>` Tawna/Brio Bonus** | 19 | entering a bonus level (`BONUS_LIDS`) from the level; kind from the Crash object's token fields, else the bonus level ID | **Option** `bonus_round_checks`, on (v0.3) |
+| **Bonus round: `<level>` Tawna/Brio Bonus** | 19 | entering a bonus level (`BONUS_LIDS`) from the level; kind from the Crash object's token fields, else the bonus level ID | **Option** `bonus_round_checks` (reach), on (v0.3) |
+| **Bonus round cleared: `<level>` Tawna/Brio Bonus Cleared** | 19 | GAMESTATE 0x300 while leaving the bonus (WillC `Willy_Warp_Out`); dying in a bonus zone keeps 0x100 (`WillyDoKill`) | **Option** `bonus_round_checks` (clear), on (v0.3) ✅ |
 | **Boxes: `<level>` 25/50/75%** | up to 78 | `BOX_COUNT` (0x80061984, << 8) in the played level vs. the level's box total (community table, logged on every win) | **Option** `box_checks` off/half/quarters (v0.3); 75% needs the level's gem path items |
 | **Reach `N` Lives** | chosen, 5-99 | lives from the Crash object in a level, `LIFE_COUNT` on the map | **Option** `life_count_checks`, default 10/20/30 (v0.3); region = map node ceil(N/3) |
 | *Event:* Defeat Cortex | 1 (locked "Victory") | Cortex level won, or the ending state ❓ | Goal, not a check |

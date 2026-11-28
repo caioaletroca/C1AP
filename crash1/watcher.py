@@ -43,7 +43,8 @@ class SlotInfo:
     gem_checks: bool
     goal: int
     box_checks: int = 0
-    bonus_round_checks: bool = False
+    bonus_round_checks: int = 0
+    """BonusRoundChecks: 0 off, 1 reach, 2 clear, 3 both"""
     life_count_checks: tuple[int, ...] = ()
 
     @classmethod
@@ -54,7 +55,7 @@ class SlotInfo:
             gem_checks=bool(slot_data["gem_checks"]),
             goal=int(slot_data["goal"]),
             box_checks=int(slot_data.get("box_checks", 0)),
-            bonus_round_checks=bool(slot_data.get("bonus_round_checks", False)),
+            bonus_round_checks=int(slot_data.get("bonus_round_checks", 0)),
             life_count_checks=tuple(int(lives) for lives in slot_data.get("life_count_checks", ())),
         )
 
@@ -113,11 +114,17 @@ class Watcher:
         """Owned bits held at 0 after the last poll"""
         self.tokens: ram.CrashFields | None = None
         """Last trusted Crash fields in the tracked level (token counts for the bonus round kind)"""
+        self.bonus_kind: Bonus | None = None
+        """Kind of the current bonus round, decided on entering it"""
+        self.bonus_cleared = False
+        """The current bonus round ended with Crash warping out (0x300), not by dying (which stays 0x100)"""
         self.bonus_seen = False
         """The current bonus round was handled (reset once play resumes in the level: Rolling Stones has two)"""
         self.box_total_noted = False
         self.max_boxes = 0
         """Highest BOX_COUNT seen in the tracked level this visit (dying takes boxes back)"""
+        self.pending_notes: list[str] = []
+        """Notes found while tracking the level, moved into the next Actions"""
         self.in_bonus = False
         """In a bonus round, or coming back from one: leaving a bonus round shows the exit states (0x300/0x500) with
         the level's own ID before play resumes (BizHawk round 8), so nothing counts as a win until the level is
@@ -133,6 +140,8 @@ class Watcher:
             return actions
 
         self._track_level(snap)
+        actions.notes.extend(self.pending_notes)
+        self.pending_notes.clear()
         live = self._trusted_live(snap, previous)
         self._detect_tier1(snap, live, actions)  # before _detect_checks, which forgets the level on the map
         self._detect_checks(snap, previous, checked, actions)
@@ -190,7 +199,7 @@ class Watcher:
         if (level is not None and snap.level in ram.BONUS_LIDS and snap.gamestate == ram.GAMESTATE_PLAYING
                 and not self.bonus_seen):
             self.bonus_seen = True
-            kind = self._bonus_kind(snap.level)
+            kind = self.bonus_kind = self._bonus_kind(snap.level)
             tokens = self.tokens
             if tokens is None:
                 token_text = "unknown"
@@ -199,11 +208,22 @@ class Watcher:
                               f"Cortex {tokens.cortex // ram.UNIT}")
             actions.notes.append(f"Bonus round from {level.name}: level ID 0x{snap.level:02X}, tokens {token_text}, "
                                  f"counted as {kind.value if kind else 'unknown'}")
-            if self.slot.bonus_round_checks and kind is not None:
+            if self.slot.bonus_round_checks in (1, 3) and kind is not None:
                 if kind in level.check_bonuses:
                     actions.locations.add(location_name_to_id[level.bonus_location(kind)])
                 elif kind != Bonus.CORTEX:
                     actions.notes.append(f"Bonus round: {level.name} has no {kind.value} bonus in the table")
+
+        # Bonus round cleared: Crash warps out of a bonus zone with 0x300 (WillC Willy_Warp_Out); dying in one keeps
+        # 0x100 and loads the checkpoint (WillyDoKill). 0x300 lasts through the load back into the level.
+        if (level is not None and self.in_bonus and self.bonus_seen and not self.bonus_cleared
+                and snap.gamestate == ram.GAMESTATE_EXIT_TO_MAP):
+            self.bonus_cleared = True
+            kind = self.bonus_kind
+            actions.notes.append(f"Bonus round from {level.name} cleared "
+                                 f"({kind.value if kind else 'unknown'}, level ID 0x{snap.level:02X})")
+            if self.slot.bonus_round_checks in (2, 3) and kind is not None and kind in level.check_bonuses:
+                actions.locations.add(location_name_to_id[level.bonus_clear_location(kind)])
 
         # Life counts
         lives = live.lives if live is not None else (snap.lives if snap.on_map and snap.gamestate == ram.GAMESTATE_MAP
@@ -235,8 +255,11 @@ class Watcher:
             self.in_bonus = True
         elif snap.on_map or (self.level is not None and snap.level == self.level.lid
                              and snap.gamestate == ram.GAMESTATE_PLAYING):
+            if self.in_bonus and self.bonus_seen and not self.bonus_cleared and self.level is not None:
+                self.pending_notes.append(f"Bonus round from {self.level.name} left without clearing it")
             self.in_bonus = False
             self.bonus_seen = False
+            self.bonus_cleared = False
         if snap.level in LEVEL_BY_LID and snap.level != ram.LID_MAP:
             level = LEVEL_BY_LID[snap.level]
             if level is not self.level:

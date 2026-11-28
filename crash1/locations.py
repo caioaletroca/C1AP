@@ -18,6 +18,7 @@ KEY_OFFSET = 0x200
 LIFE_COUNT_OFFSET = 0x300
 BONUS_OFFSET: dict[Bonus, int] = {Bonus.TAWNA: 0x400, Bonus.BRIO: 0x500}
 BOX_OFFSET: dict[int, int] = {25: 0x600, 50: 0x700, 75: 0x800}
+BONUS_CLEAR_OFFSET: dict[Bonus, int] = {Bonus.TAWNA: 0x900, Bonus.BRIO: 0xA00}
 
 
 def life_count_location(lives: int) -> str:
@@ -39,6 +40,11 @@ location_name_to_id: dict[str, int] = {
         for bonus in level.check_bonuses
     },
     **{
+        level.bonus_clear_location(bonus): BASE_ID + BONUS_CLEAR_OFFSET[bonus] + level.lid
+        for level in BONUS_LEVELS
+        for bonus in level.check_bonuses
+    },
+    **{
         level.box_location(percent): BASE_ID + BOX_OFFSET[percent] + level.lid
         for level in BOX_LEVELS
         for percent in BOX_MILESTONES
@@ -51,6 +57,11 @@ location_name_groups: dict[str, set[str]] = {
     "Gems": {level.gem_location for level in GEM_LEVELS},
     "Keys": {key.location for key in KEYS},
     "Life Counts": {life_count_location(lives) for lives in LIFE_COUNTS},
-    "Bonus Rounds": {level.bonus_location(bonus) for level in BONUS_LEVELS for bonus in level.check_bonuses},
+    "Bonus Rounds": {
+        name
+        for level in BONUS_LEVELS
+        for bonus in level.check_bonuses
+        for name in (level.bonus_location(bonus), level.bonus_clear_location(bonus))
+    },
     "Boxes": {level.box_location(percent) for level in BOX_LEVELS for percent in BOX_MILESTONES},
 }
