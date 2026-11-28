@@ -103,6 +103,10 @@ Seed YAML: `box_checks: quarters`, `bonus_round_checks: true`, `life_count_check
 
 Results (BizHawk 2.9.1, NymaShock, from the S1 save state):
 
+> Save states mislead the client: it only sees what happens while it watches. S2 (inside Rolling Stones' Brio
+> bonus, which opens at the end of the level) gave `won with up to 5 boxes` for a level whose earlier boxes the
+> client never saw. Box totals in the log are only data from runs played straight from the level start.
+
 - ✅ 8.1 Crash object 0x8009E3D4 in N. Sanity Beach (player 0x80090150), counters match the HUD. Each level and each
   bonus round has its own object; CRASH_PTR reads 0 for a moment while a bonus round loads.
 - ✅ 8.2 Extra Life in a level. ✅ 8.3 Wumpa Fruit Bundle in a level, also past 100 (life +1, fruit wraps).

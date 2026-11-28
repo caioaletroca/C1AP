@@ -80,7 +80,12 @@ The full guides are the [setup guide](crash1/docs/setup_en.md) and the
   gem). The check still counts for the level you played, and colored gems only appear once you receive the item.
 - A received gem path appears the next time you enter that level, because the game only reads gems when a level
   loads.
-- Avoid loading save states in the middle of a level.
+- Avoid loading save states in the middle of a level. The client only knows what it saw happen, so a save state
+  can skip or confuse checks:
+  - Box checks follow the game's box counter, which a save state replaces with its own count from when it was saved.
+  - A bonus round only counts if the client saw you in its level first. Enter the level, then load the state.
+  - The box total in the `[C1AP verify]` log is wrong after a save state, so leave it out of bug reports.
+  - Save states on the map, or at the start of a level, are fine.
 - Box totals come from a community table and are being verified: the client logs the real count each time a level
   is won (`[C1AP verify]` lines). Please include those lines in bug reports.
 

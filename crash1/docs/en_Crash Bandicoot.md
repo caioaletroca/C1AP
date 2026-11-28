@@ -45,6 +45,11 @@ level.
 
 ## Known limitations (v0.1)
 
+- Avoid loading save states in the middle of a level. The client only knows what it saw happen, so a save state
+  can skip or confuse checks:
+  - Box checks follow the game's box counter, which a save state replaces with its own count from when it was saved.
+  - A bonus round only counts if the client saw you in its level first. Enter the level, then load the state.
+  - Save states on the map, or at the start of a level, are fine.
 - NTSC-U (SCUS-94900) only.
 - Death Link only sends deaths: every time you die, the others die too. Received deaths are not applied yet.
 - Gems belong to map nodes: the end screen shows the gem of the node you entered from, but the check counts for the
