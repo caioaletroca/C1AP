@@ -123,6 +123,9 @@ Results (BizHawk 2.9.1, NymaShock, from the S1 save state):
   save card) → `Tawna Bonus Cleared`, 0x300 first seen with the level's ID (0x0C); Complete only at the real end.
 - ✅ 8.13 Client restarted in a level after an in-level Extra Life and Wumpa bundle: nothing applied twice (per-name
   applied counts). An Aku Aku Mask received in the level then waited for the map and gave the second mask.
+- ✅ 8.14 Level shuffle (seed `round8c`, from S1): Jungle Rollers' node loaded Temple Ruins (0x1C) and its box
+  check was `Temple Ruins - 25% Boxes`; Hog Wild's node loaded Boulders (0x0E); Upstream's node loaded Jungle Rollers
+  (0x0C): its boxes, Tawna Bonus, Tawna Bonus Cleared and Complete all counted for Jungle Rollers.
 - ✅ 8.9 Reach 5 / 10 Lives in a level. ✅ 8.10 dying takes a life as usual.
 - Fixed: leaving a bonus round shows 0x300/0x500 with the level's own ID before play resumes, which sent the level's
   Complete. Wins now count only after play resumes in the level.
