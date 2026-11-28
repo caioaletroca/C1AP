@@ -59,6 +59,12 @@ FIELD_BRIO = 7
 FIELD_TAWNA = 8
 RAM_SIZE = 0x200000
 
+# Camera (engine). The view matrix rolls by CAM_ROT_Z (kdecomp src/main/render/camera_matrix.c, sin/cos(-rot_z));
+# the engine only sets it to 0 when a level loads (mode_initialize.c), so a write sticks until the next load.
+CAM_ROT_Z = 0x80057878         # VERIFY: kdecomp g_cam_rot_z; angles are 12-bit (0x1000 = 360 degrees)
+CAM_ROLL_FLIPPED = 0x800       # 180 degrees
+PAUSE_OBJ = 0x80061964         # VERIFY: kdecomp g_pause_obj, the pause menu object (logged by the trap test script)
+
 # Values
 GAMESTATE_MAP = 0x000          # OK: standing on the map
 GAMESTATE_PLAYING = 0x100      # OK: in a level (also the end-of-level screen)

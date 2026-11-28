@@ -1,6 +1,7 @@
 from BaseClasses import Item, ItemClassification
 
 from .data import COLORED_GEMS, KEYS
+from .timed import BUTTON_SWAP_TRAP, NO_LIVES_TRAP, REVERSE_CONTROLS_TRAP, TIMED_TRAPS, UPSIDE_DOWN_TRAP
 
 GAME_NAME = "Crash Bandicoot"
 BASE_ID = 7_310_000
@@ -13,7 +14,6 @@ class Crash1Item(Item):
 MAP_PROGRESS = "Map Progress"
 CLEAR_GEM = "Clear Gem"
 VICTORY = "Victory"
-NO_LIVES_TRAP = "No Lives Trap"
 
 FILLER_WEIGHTS: dict[str, int] = {
     "Extra Life": 3,
@@ -29,17 +29,20 @@ item_name_to_id: dict[str, int] = {
     CLEAR_GEM: BASE_ID + 30,
     **{name: BASE_ID + 40 + index for index, name in enumerate(FILLER_WEIGHTS)},
     NO_LIVES_TRAP: BASE_ID + 50,
+    UPSIDE_DOWN_TRAP: BASE_ID + 51,
+    REVERSE_CONTROLS_TRAP: BASE_ID + 52,
+    BUTTON_SWAP_TRAP: BASE_ID + 53,
 }
 
-APPLIED_ON_MAP: tuple[str, ...] = (*FILLER_WEIGHTS, NO_LIVES_TRAP)
-"""Items the client writes into the game on the map, one at a time, in the order received"""
+APPLIED_ON_MAP: tuple[str, ...] = (*FILLER_WEIGHTS, *TIMED_TRAPS)
+"""Items the client applies one at a time, in the order received (filler on the map or in a level, traps anywhere)"""
 
 item_name_groups: dict[str, set[str]] = {
     "Keys": {key.item_name for key in KEYS},
     "Colored Gems": {gem.item_name for gem in COLORED_GEMS},
     "Gems": {gem.item_name for gem in COLORED_GEMS} | {CLEAR_GEM},
     "Filler": set(FILLER_WEIGHTS),
-    "Traps": {NO_LIVES_TRAP},
+    "Traps": set(TIMED_TRAPS),
 }
 
 DEFAULT_CLASSIFICATION: dict[str, ItemClassification] = {
@@ -48,5 +51,5 @@ DEFAULT_CLASSIFICATION: dict[str, ItemClassification] = {
     **{gem.item_name: ItemClassification.progression for gem in COLORED_GEMS},
     CLEAR_GEM: ItemClassification.filler,
     **{name: ItemClassification.filler for name in FILLER_WEIGHTS},
-    NO_LIVES_TRAP: ItemClassification.trap,
+    **{name: ItemClassification.trap for name in TIMED_TRAPS},
 }

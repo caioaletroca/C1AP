@@ -140,3 +140,32 @@ Results (BizHawk 2.9.1, NymaShock, from the S1 save state):
 (N. Sanity Beach), back on the map → "No Lives Trap over: 4 lives". A second trap armed again right after.
 ✅ Game over with the second trap armed: died once with 0 lives → Game Over → Continue → 4 lives (vanilla), trap
 cleared without restoring.
+
+**Round 9 (v0.4 timed traps).** New addresses from kdecomp, not yet seen in a running game:
+`CAM_ROT_Z` 0x80057878, `Pad_Update` 0x800167A4 with one `jal PadRead` (0x0C00F918), the cave at 0x8000F400
+(kernel RAM, assumed unused) and the pause object 0x80061964.
+
+Part A, no client: `tools/c1ap_trap_test.lua` in the Lua Console (keys H J L M U, all free in BizHawk here).
+
+| # | Test | Expect | Result |
+|---|---|---|---|
+| 9.1 | Load the script | console: `cave survey (start): all zero` and `jal PadRead found at 0x8001xxxx (original)` | |
+| 9.2 | H in a level, walk around, die, enter a bonus | camera upside down; note if `game reset the camera roll` is logged (and when) | |
+| 9.3 | H on the map | map upside down too (the client only flips in levels) | |
+| 9.4 | L in a level | left walks right and right walks left; text shows `jal HOOKED`, `cave ok` | |
+| 9.5 | M in a level | X spins, Square and Circle jump; L+M together both apply | |
+| 9.6 | U | everything normal; `restored jal`; no crash or freeze | |
+| 9.7 | J in a level with lives | lives 0 on the HUD for 20 s, `banked N lives`, then `N lives back` | |
+| 9.8 | J, then die | game over (lives were 0) | |
+| 9.9 | Pause during any trap | write down `pause` value paused and unpaused (for pause detection) | |
+| 9.10 | Leave the script running 5+ minutes untouched | no `cave survey (periodic)` line (cave stays zero) | |
+
+Part B, with the client (seed with `trap_chance` > 0): `!getitem <trap>` in the client for each trap.
+
+| # | Test | Expect | Result |
+|---|---|---|---|
+| 9.11 | `Upside Down Trap` on the map, then enter a level | normal map; flipped in the level; normal again after 20 s of play | |
+| 9.12 | `Reverse Controls Trap` and `Button Swap Trap` in a level | both apply; each ends after its time; `restored` the game | |
+| 9.13 | `No Lives Trap` in a level | lives 0; back when it ends: `No Lives Trap over: N lives back.` | |
+| 9.14 | Same trap twice | time adds up (40 s) | |
+| 9.15 | Restart the client mid-trap | the trap goes on with the time left; no lives lost or doubled | |

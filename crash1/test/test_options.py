@@ -1,3 +1,4 @@
+from BaseClasses import ItemClassification
 from .bases import Crash1TestBase
 
 
@@ -34,6 +35,28 @@ class TestTraps(Crash1TestBase):
         traps = self.get_items_by_name("No Lives Trap")
         self.assertTrue(traps)
         self.assertFalse(self.get_items_by_name("Extra Life"))
+
+    def test_every_trap_by_default_weights(self) -> None:
+        for name in ("No Lives Trap", "Upside Down Trap", "Reverse Controls Trap", "Button Swap Trap"):
+            self.assertTrue(self.get_items_by_name(name), name)
+
+
+class TestTrapWeights(Crash1TestBase):
+    options = {"trap_chance": 100, "no_lives_trap_weight": 0, "upside_down_trap_weight": 0,
+               "reverse_controls_trap_weight": 0, "button_swap_trap_weight": 3}
+
+    def test_only_weighted_traps(self) -> None:
+        self.assertTrue(self.get_items_by_name("Button Swap Trap"))
+        for name in ("No Lives Trap", "Upside Down Trap", "Reverse Controls Trap"):
+            self.assertFalse(self.get_items_by_name(name), name)
+
+
+class TestAllTrapWeightsZero(Crash1TestBase):
+    options = {"trap_chance": 100, "no_lives_trap_weight": 0, "upside_down_trap_weight": 0,
+               "reverse_controls_trap_weight": 0, "button_swap_trap_weight": 0}
+
+    def test_no_traps(self) -> None:
+        self.assertFalse(any(item.classification & ItemClassification.trap for item in self.multiworld.itempool))
 
 
 class TestNoTrapsByDefault(Crash1TestBase):

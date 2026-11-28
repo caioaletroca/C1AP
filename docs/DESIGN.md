@@ -26,7 +26,8 @@ Legend: ✅ decided · 🔧 implementation detail (can change) · ❓ game fact 
 **Deferred** (not designed here):
 - Wumpa and life checks (C2AP style).
 - Gating levels by clear-gem count; it needs an in-game way to show the player the requirement.
-- Traps.
+- Traps. Done in v0.4 (`crash1/timed.py`): timed No Lives, Upside Down, Reverse Controls and Button Swap. The two
+  controller traps patch one `jal` in RAM to a small routine (`crash1/hook.py`), still no disc patch.
 - A DuckStation client.
 - PopTracker pack.
 - PAL/NTSC-J.

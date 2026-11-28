@@ -10,8 +10,13 @@
 - **Keys** to *Whole Hog* and *Fumbling in the Dark* are items.
 - Leftover slots are filled with extra lives, Aku Aku masks and Wumpa fruit. Extra lives and Wumpa fruit arrive
   right away, even in the middle of a level; Aku Aku masks wait until you are back on the map. With *Trap Chance*, some of them are
-  *No Lives Traps* instead: you play your next level with 0 lives (one death is a game over). Back on the map you
-  get your lives back, plus any you picked up; a game over ends the trap without giving them back.
+  traps instead. Each lasts *Trap Duration* seconds of play in a level (the clock stops on the map), then the game
+  goes back to normal. The same trap again adds its time; different traps stack.
+  - *No Lives Trap*: 0 lives, so one death is a game over. Your lives (and any you pick up meanwhile) come back when
+    it ends or on the map; a game over ends the trap and they are lost.
+  - *Upside Down Trap*: the camera is upside down. The HUD and the controls stay as they are.
+  - *Reverse Controls Trap*: left and right are swapped.
+  - *Button Swap Trap*: jump is on Square/Circle and spin on X.
 
 ## What is the goal?
 
@@ -40,8 +45,8 @@ The game shows nothing special. The item is sent as soon as the client sees the 
 Colored gems and keys appear in your inventory right away; a gem path shows up the next time you enter the
 level (the game only checks gems when a level loads). Map progress takes effect the next time you are on
 the map. Extra lives and Wumpa fruit are added right away, in a level too (10 fruit at a time; reaching 100 gives a
-life, as in the game). Aku Aku masks and traps are applied the next time you are on the map and carry into the next
-level.
+life, as in the game). Aku Aku masks are applied the next time you are on the map and carry into the next level.
+Traps start right away and only count down while you play a level.
 
 ## Known limitations (v0.1)
 

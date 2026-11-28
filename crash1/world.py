@@ -10,9 +10,10 @@ from .data import (
     MAP_NODES, SECRET_LEVELS, Gem, Level, box_percents,
 )
 from .items import (
-    CLEAR_GEM, DEFAULT_CLASSIFICATION, FILLER_WEIGHTS, GAME_NAME, MAP_PROGRESS, NO_LIVES_TRAP, VICTORY, Crash1Item, item_name_groups,
+    CLEAR_GEM, DEFAULT_CLASSIFICATION, FILLER_WEIGHTS, GAME_NAME, MAP_PROGRESS, VICTORY, Crash1Item, item_name_groups,
     item_name_to_id,
 )
+from .timed import BUTTON_SWAP_TRAP, NO_LIVES_TRAP, REVERSE_CONTROLS_TRAP, UPSIDE_DOWN_TRAP
 from .locations import CORTEX_EVENT, Crash1Location, life_count_location, location_name_groups, location_name_to_id
 from .options import Crash1Options, Goal, option_groups, option_presets
 from .shuffle import shuffle_order, vanilla_order
@@ -171,9 +172,19 @@ class Crash1World(World):
         pool += [self.create_filler() for _ in range(unfilled - len(pool))]
         self.multiworld.itempool += pool
 
+    def trap_weights(self) -> dict[str, int]:
+        return {
+            NO_LIVES_TRAP: self.options.no_lives_trap_weight.value,
+            UPSIDE_DOWN_TRAP: self.options.upside_down_trap_weight.value,
+            REVERSE_CONTROLS_TRAP: self.options.reverse_controls_trap_weight.value,
+            BUTTON_SWAP_TRAP: self.options.button_swap_trap_weight.value,
+        }
+
     def get_filler_item_name(self) -> str:
-        if self.random.randint(0, 99) < self.options.trap_chance.value:
-            return NO_LIVES_TRAP
+        weights = self.trap_weights()
+        if any(weights.values()) and self.random.randint(0, 99) < self.options.trap_chance.value:
+            names = list(weights)
+            return self.random.choices(names, weights=[weights[name] for name in names])[0]
         names = list(FILLER_WEIGHTS)
         return self.random.choices(names, weights=[FILLER_WEIGHTS[name] for name in names])[0]
 
@@ -197,6 +208,7 @@ class Crash1World(World):
             "bonus_round_checks": self.options.bonus_round_checks.value,
             "life_count_checks": self.life_counts(),
             "death_link": self.options.death_link.value,
+            "trap_duration": self.options.trap_duration.value,
             "world_version": ".".join(map(str, self.world_version)),  # from archipelago.json
         }
 

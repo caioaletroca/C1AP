@@ -3,6 +3,8 @@
 All game logic lives in ``watcher.py``; this module only talks to BizHawk and the server.
 """
 import logging
+import struct
+import time
 from collections import Counter
 from typing import TYPE_CHECKING, Any
 
@@ -10,8 +12,9 @@ from NetUtils import ClientStatus
 import worlds._bizhawk as bizhawk
 from worlds._bizhawk.client import BizHawkClient
 
-from . import filler, ram, trap
-from .items import APPLIED_ON_MAP, GAME_NAME, NO_LIVES_TRAP, item_name_to_id
+from . import filler, hook, ram, timed, trap
+from .items import APPLIED_ON_MAP, GAME_NAME, item_name_to_id
+from .timed import TIMED_TRAPS, TimedTraps
 from .trap import TrapState
 from .watcher import SlotInfo, Watcher
 
@@ -55,7 +58,18 @@ def _filler_key(ctx: "BizHawkClientContext") -> str:
 
 
 def _trap_key(ctx: "BizHawkClientContext") -> str:
+    """v0.3 No Lives Trap (one level, set on the map); only read to finish a trap started before v0.4"""
     return f"C1AP_trap_{ctx.team}_{ctx.slot}"
+
+
+def _timed_key(ctx: "BizHawkClientContext") -> str:
+    return f"C1AP_timed_traps_{ctx.team}_{ctx.slot}"
+
+
+TRAP_SAVE_INTERVAL = 3.0
+"""Seconds between saves of the trap clocks while traps run"""
+MAX_TICK = 1.0
+"""Longest step of the trap clock between two polls, so a stalled emulator does not use up a trap"""
 
 
 async def _store(ctx: "BizHawkClientContext", key: str, value: Any) -> None:
@@ -92,6 +106,11 @@ class Crash1Client(BizHawkClient):
         self.notify_set = False
         self.crash_ptr_logged = 0
         self.unreadable_logged = -1
+        self.pad_call: int | None = None
+        """Address of Pad_Update's ``jal PadRead``, found once"""
+        self.pad_call_missing_logged = False
+        self.last_tick: float | None = None
+        self.last_trap_save = 0.0
 
     async def validate_rom(self, ctx: "BizHawkClientContext") -> bool:
         try:
@@ -128,7 +147,7 @@ class Crash1Client(BizHawkClient):
             self.watcher = Watcher(SlotInfo.from_slot_data(ctx.slot_data))
             await ctx.update_death_link(bool(ctx.slot_data.get("death_link", False)))
         if not self.notify_set:
-            ctx.set_notify(_filler_key(ctx), _trap_key(ctx))
+            ctx.set_notify(_filler_key(ctx), _trap_key(ctx), _timed_key(ctx))
             self.notify_set = True
 
         try:
@@ -172,10 +191,88 @@ class Crash1Client(BizHawkClient):
 
             if await self._advance_trap(ctx, snap):
                 return  # lives were just restored; filler waits for the next poll
+            if await self._run_timed_traps(ctx, snap):
+                return  # lives were just changed; filler waits for the next poll
             if actions.can_apply_filler or actions.can_apply_live_filler:
                 await self._apply_filler(ctx, snap, on_map=actions.can_apply_filler)
         except bizhawk.RequestFailedError:
             pass  # emulator busy or disconnected; try again next poll
+
+    # Timed traps
+
+    async def _run_timed_traps(self, ctx: "BizHawkClientContext", snap: ram.Snapshot) -> bool:
+        """Count the traps down and make the game match them. Returns True if the lives were changed."""
+        key = _timed_key(ctx)
+        if key not in ctx.stored_data:
+            return False  # not loaded yet
+        now = time.monotonic()
+        elapsed = 0.0 if self.last_tick is None else min(now - self.last_tick, MAX_TICK)
+        self.last_tick = now
+
+        stored = TimedTraps.from_json(ctx.stored_data[key])
+        state, ended = timed.tick(stored, snap, elapsed)
+        for name in ended:
+            if name == timed.NO_LIVES_TRAP and snap.gamestate == ram.GAMESTATE_GAME_OVER:
+                logger.info("No Lives Trap over: game over, the banked lives are lost.")
+            else:
+                logger.info(f"{name} over.")
+
+        await self._find_pad_call(ctx)
+        requests = [(ram.offset(ram.CAM_ROT_Z), 4, ram.DOMAIN), (ram.offset(hook.CAVE), hook.CAVE_SIZE, ram.DOMAIN)]
+        if self.pad_call is not None:
+            requests.append((ram.offset(self.pad_call), 4, ram.DOMAIN))
+        blocks = await bizhawk.read(ctx.bizhawk_ctx, requests)
+        cam_rot_z = struct.unpack_from("<I", blocks[0])[0]
+
+        out = timed.plan(state, snap, cam_rot_z)
+        lives_changed = False
+        if out.writes and await _write_words(ctx, out.writes, out.guards):
+            state = out.state
+            lives_changed = any(address != ram.CAM_ROT_Z for address in out.writes)
+            for note in out.notes:
+                logger.info(note)
+        if self.pad_call is not None:
+            await self._sync_hook(ctx, out.flags, blocks[1], struct.unpack_from("<I", blocks[2])[0])
+
+        changed = bool(ended) or state.banked != stored.banked
+        if changed or (state.any_active and now - self.last_trap_save >= TRAP_SAVE_INTERVAL):
+            if state.to_json() != stored.to_json():
+                await _store(ctx, key, state.to_json())
+            self.last_trap_save = now
+        return lives_changed
+
+    async def _find_pad_call(self, ctx: "BizHawkClientContext") -> None:
+        if self.pad_call is not None or self.pad_call_missing_logged:
+            return
+        block = (await bizhawk.read(ctx.bizhawk_ctx, [(ram.offset(hook.PAD_UPDATE), hook.PAD_UPDATE_SCAN,
+                                                       ram.DOMAIN)]))[0]
+        self.pad_call = hook.find_call(block)
+        if self.pad_call is None:
+            self.pad_call_missing_logged = True
+            logger.info("[C1AP verify] Pad_Update's call to PadRead was not found: the control traps do nothing.")
+
+    async def _sync_hook(self, ctx: "BizHawkClientContext", flags: int, cave: bytes, call: int) -> None:
+        """Point Pad_Update's call at the swap routine while a control trap runs, and back at PadRead otherwise"""
+        assert self.pad_call is not None
+        cave_flags = struct.unpack_from("<I", cave)[0]
+        if flags:
+            if cave[4:] != hook.ROUTINE_BYTES:
+                await bizhawk.write(ctx.bizhawk_ctx, [(ram.offset(hook.CODE), hook.ROUTINE_BYTES, ram.DOMAIN)])
+                if call == hook.JAL_CAVE:
+                    logger.info("[C1AP verify] The controller routine changed while in use; rewritten.")
+                return  # hooked on the next poll, once the routine reads back intact
+            writes: dict[int, int] = {}
+            guards: dict[int, int] = {}
+            if cave_flags != flags:
+                writes[hook.FLAGS] = flags
+            if call == hook.JAL_PAD_READ:
+                writes[self.pad_call], guards[self.pad_call] = hook.JAL_CAVE, hook.JAL_PAD_READ
+            if writes:
+                await _write_words(ctx, writes, guards)
+        elif call == hook.JAL_CAVE:
+            await _write_words(ctx, {self.pad_call: hook.JAL_PAD_READ, hook.FLAGS: 0}, {self.pad_call: hook.JAL_CAVE})
+        elif cave_flags:
+            await _write_words(ctx, {hook.FLAGS: 0}, {})
 
     async def _advance_trap(self, ctx: "BizHawkClientContext", snap: ram.Snapshot) -> bool:
         """Track an active No Lives Trap; returns True if this poll restored the lives."""
@@ -218,22 +315,18 @@ class Crash1Client(BizHawkClient):
         """Apply one filler item or trap not yet applied: anything on the map, lives and fruit in a level.
         Applied counts per name live in data storage so they survive restarts."""
         key = _filler_key(ctx)
-        if key not in ctx.stored_data or _trap_key(ctx) not in ctx.stored_data:
+        if key not in ctx.stored_data or _timed_key(ctx) not in ctx.stored_data:
             return  # not loaded yet
         fillers = [name for item in ctx.items_received
                    if (name := ITEM_ID_TO_NAME.get(item.item)) in APPLIED_ON_MAP]
         applied = filler.applied_counts(ctx.stored_data[key], fillers)
 
         for name in filler.pending(fillers, applied):
-            if name == NO_LIVES_TRAP:
-                if not on_map:
-                    continue
-                state, lives = trap.spring(TrapState.from_json(ctx.stored_data[_trap_key(ctx)]), snap)
-                if lives is not None:
-                    if not await _write_word(ctx, ram.LIFE_COUNT, lives, snap.lives):
-                        return
-                    await _store(ctx, _trap_key(ctx), state.to_json())
-                    logger.info("No Lives Trap! 0 lives for the next level.")
+            if name in TIMED_TRAPS:
+                seconds = int(ctx.slot_data.get("trap_duration", 20))
+                state = TimedTraps.from_json(ctx.stored_data[_timed_key(ctx)]).add(name, seconds)
+                await _store(ctx, _timed_key(ctx), state.to_json())
+                logger.info(f"{name}! {seconds} seconds of play.")
             else:
                 plan = filler.plan_on_map(name, snap) if on_map else filler.plan_in_level(name, snap)
                 if plan is None:

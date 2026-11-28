@@ -104,16 +104,57 @@ class StartingNodes(Range):
 
 
 class TrapChance(Range):
-    """Chance (in percent) for each filler item to be a trap instead.
+    """Chance (in percent) for each filler item to be a trap instead. Which trap is picked by the trap weights.
 
-    No Lives Trap: you play your next level with 0 lives, so one death is a game over. Back on the map, your lives
-    come back (plus any you picked up in the level). A game over ends the trap without giving them back.
+    Traps last Trap Duration seconds of play in a level (the map and loading screens don't count), then the game goes
+    back to normal. The same trap received again adds its duration.
     """
 
     display_name = "Trap Chance"
     range_start = 0
     range_end = 100
     default = 0
+
+
+class TrapDuration(Range):
+    """How many seconds of play in a level each trap lasts."""
+
+    display_name = "Trap Duration"
+    range_start = 5
+    range_end = 120
+    default = 20
+
+
+class TrapWeight(Range):
+    range_start = 0
+    range_end = 10
+    default = 1
+
+
+class NoLivesTrapWeight(TrapWeight):
+    """No Lives Trap: your lives are 0 while it lasts, so one death is a game over. They come back when it ends
+    (plus any you picked up meanwhile); a game over loses them."""
+
+    display_name = "No Lives Trap Weight"
+
+
+class UpsideDownTrapWeight(TrapWeight):
+    """Upside Down Trap: the camera turns upside down. The controls stay as they were, so left on the stick is
+    right on screen."""
+
+    display_name = "Upside Down Trap Weight"
+
+
+class ReverseControlsTrapWeight(TrapWeight):
+    """Reverse Controls Trap: left and right are swapped."""
+
+    display_name = "Reverse Controls Trap Weight"
+
+
+class ButtonSwapTrapWeight(TrapWeight):
+    """Button Swap Trap: jump is on Square/Circle and spin is on X."""
+
+    display_name = "Button Swap Trap Weight"
 
 
 @dataclass
@@ -126,13 +167,19 @@ class Crash1Options(PerGameCommonOptions):
     life_count_checks: LifeCountChecks
     starting_nodes: StartingNodes
     trap_chance: TrapChance
+    trap_duration: TrapDuration
+    no_lives_trap_weight: NoLivesTrapWeight
+    upside_down_trap_weight: UpsideDownTrapWeight
+    reverse_controls_trap_weight: ReverseControlsTrapWeight
+    button_swap_trap_weight: ButtonSwapTrapWeight
     death_link: DeathLink
 
 
 option_groups: list[OptionGroup] = [
     OptionGroup("Progression", [Goal, LevelShuffle, StartingNodes]),
     OptionGroup("Checks", [GemChecks, BoxChecks, BonusRoundChecks, LifeCountChecks]),
-    OptionGroup("Traps", [TrapChance]),
+    OptionGroup("Traps", [TrapChance, TrapDuration, NoLivesTrapWeight, UpsideDownTrapWeight,
+                          ReverseControlsTrapWeight, ButtonSwapTrapWeight]),
 ]
 
 option_presets: dict[str, dict[str, object]] = {

@@ -1,4 +1,7 @@
-"""No Lives Trap: lives drop to 0 for one level, then come back.
+"""Legacy (v0.3) No Lives Trap: lives drop to 0 for one level, then come back.
+
+Since v0.4 traps are timed (``timed.py``) and nothing arms this one any more. The client still runs ``advance`` so a
+trap armed by v0.3 (state in data storage) finishes and gives the lives back. The notes below describe v0.3.
 
 The game only takes lives into a level when it loads, and the in-level counter lives in a game object whose address
 changes per level, so the client can't restore lives mid-level the way C2AP's timed trap does. Instead:

@@ -21,7 +21,13 @@ the map, the colored gems and the secret keys come back to you as items.
 - **Keys.** The keys to *Whole Hog* and *Fumbling in the Dark* are items.
 - **Filler.** Extra lives, Aku Aku masks and Wumpa fruit. Extra lives and Wumpa fruit arrive right away, even in
   the middle of a level; masks wait for the map.
-- **Traps** (optional). *No Lives Trap*: you play your next level with 0 lives, then they come back on the map.
+- **Traps** (optional). Each lasts `trap_duration` seconds of play in a level, then the game goes back to normal:
+  - *No Lives Trap*: 0 lives, so one death is a game over. Your lives come back when it ends.
+  - *Upside Down Trap*: the camera rolls upside down.
+  - *Reverse Controls Trap*: left and right are swapped.
+  - *Button Swap Trap*: jump is on Square/Circle and spin on X.
+
+  The clock stops on the map. The same trap again adds its time; different traps stack.
 
 The locations are:
 
@@ -46,7 +52,9 @@ Defeat Dr. N. Cortex (`cortex`), or defeat him while holding all 26 gems (`all_g
 | `bonus_round_checks` | `off`, `reach`, `clear` or `reach_and_clear` each Tawna and Brio bonus round | `reach_and_clear` |
 | `life_count_checks` | life counts from 5 to 99, for example `["10", "20", "30"]` | `["10", "20", "30"]` |
 | `starting_nodes` | 1-10 map nodes open at the start | 3 |
-| `trap_chance` | 0-100: % of filler replaced by a No Lives Trap | 0 |
+| `trap_chance` | 0-100: % of filler replaced by a trap | 0 |
+| `trap_duration` | 5-120 seconds of play in a level per trap | 20 |
+| `no_lives_trap_weight`, `upside_down_trap_weight`, `reverse_controls_trap_weight`, `button_swap_trap_weight` | 0-10: how often each trap is picked (all 0 = no traps) | 1 |
 | `death_link` | `true` / `false` | `false` |
 
 ## Setup
